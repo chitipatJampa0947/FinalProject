@@ -1,0 +1,14 @@
+# Ignore Node.js dependencies
+ai-detection-app/node_modules/
+ai-detection-app/dist/
+
+# Ignore local environment files
+ai-detection-app/.env
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# (เพิ่มเติม) ถ้ามีไฟล์ชั่วคราวของ MS Word/Excel
+~$*.docx
+~$*.xlsx
