@@ -1,16 +1,39 @@
 @import "tailwindcss";
 
+@theme {
+  --font-headline: "Inter", "Sarabun", sans-serif;
+  --font-body: "Inter", "Sarabun", sans-serif;
+  --font-label: "Inter", sans-serif;
+}
+
 :root {
-  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, Consolas, monospace;
+  --background: #faf8ff;
+  --on-surface: #131b2e;
 }
 
 body {
-  @apply bg-red-100 text-slate-900 font-sans;
+  font-family: 'Inter', 'Sarabun', sans-serif;
+  background-color: var(--background);
+  color: var(--on-surface);
+}
+
+@layer components {
+  .signature-gradient {
+    background: linear-gradient(135deg, #3525cd 0%, #4f46e5 100%);
+  }
+
+  .thai-leading {
+    line-height: 1.8;
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+  }
 }
 
 @layer base {
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
+    @apply font-headline font-semibold tracking-tight;
   }
 }
