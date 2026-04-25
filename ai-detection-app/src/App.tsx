@@ -35,7 +35,7 @@ function App() {
   };
 
   const handleAnalyze = () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || inputText.length <= 200) return;
     // TODO: replace with real API call
     setAnalysisResult({ text: inputText, predictedClass: "Human", percentage: 85 });
   };
@@ -137,11 +137,14 @@ function App() {
                       readOnly={!!analysisResult}
                     ></textarea>
                     <div className="flex justify-between items-center mt-8 pt-8">
-                      <div className="text-sm font-label tracking-widest text-outline uppercase">
-                        {analysisResult
-                          ? <span className="text-primary">Analysis complete</span>
-                          : <>Character Count: {inputText.length} / 5,000</>
-                        }
+                      <div className="text-sm font-label tracking-widest uppercase">
+                        {analysisResult ? (
+                          <span className="text-primary">Analysis complete</span>
+                        ) : inputText.length > 0 && inputText.length <= 200 ? (
+                          <span className="text-error">ข้อความสั้นเกินไป ({inputText.length} / 200 ตัวอักษรขั้นต่ำ)</span>
+                        ) : (
+                          <span className="text-outline">Character Count: {inputText.length} / 5,000</span>
+                        )}
                       </div>
                       {analysisResult ? (
                         <button
@@ -152,7 +155,11 @@ function App() {
                           <span className="material-symbols-outlined">refresh</span>
                         </button>
                       ) : (
-                        <button onClick={handleAnalyze} className="signature-gradient text-white px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 active:scale-[0.98] shadow-xl shadow-primary/20 transition-all font-label uppercase">
+                        <button
+                          onClick={handleAnalyze}
+                          disabled={inputText.length <= 200}
+                          className="signature-gradient text-white px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 active:scale-[0.98] shadow-xl shadow-primary/20 transition-all font-label uppercase disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
+                        >
                           <span>Analyze Text</span>
                           <span className="material-symbols-outlined">analytics</span>
                         </button>
