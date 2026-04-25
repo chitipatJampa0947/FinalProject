@@ -9,6 +9,12 @@ ai-detection-app/.env
 .DS_Store
 Thumbs.db
 
+# Ignore Claude's local config file
+settings.local.json
+
+#ignore .env files in the root directory
+.env
+
 # (เพิ่มเติม) ถ้ามีไฟล์ชั่วคราวของ MS Word/Excel
 ~$*.docx
 ~$*.xlsx

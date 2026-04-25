@@ -1,0 +1,84 @@
+{
+  "stats": {
+    "label_0_count": 335,
+    "label_0_avg_chars": 1893.4,
+    "label_0_med_chars": 1246.0,
+    "label_0_avg_eng": 45.13,
+    "label_0_avg_cs_ratio": 5.31,
+    "label_1_count": 335,
+    "label_1_avg_chars": 969.2,
+    "label_1_med_chars": 849.0,
+    "label_1_avg_eng": 19.86,
+    "label_1_avg_cs_ratio": 4.99,
+    "total": 670,
+    "train": 469,
+    "val": 100,
+    "test": 101
+  },
+  "examples": {
+    "0": [
+      {
+        "text": "[🇹🇭🇯🇵] Special Collaboration Project ร่วมคัดเลือก 8 สมาชิก BNK48 & CGM48 ร่วมโปรเจ็กต์พิเศษ Thai-Japanese Special Collaboration Project ที่จะได้ทำเพลงพิเศษ Produced by F.HERO [Voting Period]16 Jan (12:00) - 15 Feb 2026 (12:00)Vote @ iAM48 Application [Final Results Announcement]15 Feb 2026 [หมายเหตุ]- เนื่องด้วยระยะเวลาของโปรเจ็กต์และตารางกิจกรรมของวง Quadlips Fame จะไม่ได้ร่วมกิจกรรมนี้- ใช้ BNK Token ในการโหวต (หลังจากสิ้นสุดการโหวต BNK Token ของท่านจะถูก Burn ทิ้ง)",
+        "char_len": 472,
+        "eng_count": 32,
+        "cs_ratio": 14.8
+      },
+      {
+        "text": "https://www.forbes.com/sites/pamdanziger/2025/02/13/disney-shifts-away-from-dei-to-return-to-its-primary-business-mission/ https://www.independent.co.uk/news/world/americas/disney-dei-trump-investor-rollback-b2695568.html ดูแปลกสำหรับบริษัทที่ใช้นโยบายที่ผลิตสื่อ ความบันเทิงที่สอดแทรกเรื่อง ความหลากหลายทางเพศ ชาติพันธุ์ที่ทำมา 10 ปี แล้วจะกลับไปให้คุณค่า ดั้งเดิมที่ ผู้ก่อตั้งเริ่มต้นไว้ คิดว่าทำไมเค้าถึงเลิก ?",
+        "char_len": 414,
+        "eng_count": 33,
+        "cs_ratio": 15.6
+      },
+      {
+        "text": "#สมอารมณ์หมาย ณ Cafe Amazon Experienceติด BTS อารีย์ เปิดแล้ว อลังการมาก สมเป็นแลนด์มาร์คใหม่ย่านอารีย์ คาเฟ่นี้มีทั้งหมด 6 ชั้น L GCafé Amazon + Found & FoundCafe amazon 06:00-19:00Found & Found 10:00-21:00 ::::::L 1The Experience Bar + Bakery FactoryMerchandise จำหน่ายOpen 07:00-20:00 :::::: L 2Chocolate Bar + Tea Bar ( Matcha - Derssert )Open 07:00-20:00 ::::::L 3Common SpaceOpen 07:00-20:00 :::::: L 4Inspiring SpaceOpen 07:00-20:00 ::::::L 5-6ร้าน BrewaveFood 11:00-24:00Bar 16:00-24:00 :::::",
+        "char_len": 779,
+        "eng_count": 45,
+        "cs_ratio": 13.9
+      },
+      {
+        "text": "SHISEIDO HONG KONG ประกาศจัด ULTIMUNE × LISA experience event in Hong Kong ตั้งแต่วันที่ 17 -30 มีนาคม 2026 สถานที่จัดงาน คือ SOGO Causeway Bay โดยมี Featuring LISA-Themed Photo Zones ด้วย ใครไปเที่ยวฮ่องกงช่วงนั้นแวะไปได้เลยนะทุกคน แก้ไขข้อความเมื่อ",
+        "char_len": 250,
+        "eng_count": 18,
+        "cs_ratio": 13.7
+      },
+      {
+        "text": "A third-year Computer Engineering student seeking an internship as a Software Engineer, with a foundation in programming, strong teamwork skills, and a high level of responsibility. Experienced in using AI tools to assist with learning, problem analysis, and basic software development to enhance efficiency. นักศึกษาชั้นปีที่ 3 สาขาวิศวกรรมคอมพิวเตอร์ กำลังมองหาการฝึกงานในตำแหน่ง Software Engineer มีพื้นฐานด้านการเขียนโปรแกรม มีทักษะการทำงานเป็นทีม และมีความรับผิดชอบ สามารถนำเครื่องมือ AI มาใช้ช่",
+        "char_len": 750,
+        "eng_count": 54,
+        "cs_ratio": 12.7
+      }
+    ],
+    "1": [
+      {
+        "text": "\"Hey fans! มาสนใจโปรเจ็กต์พิเศษดี๊ดีจาก BNK48 & CGM48 กัน! เราได้ร่วมมือกับ F.Hero ในโครงการ special collaboration project นี้ เราจะทำเพลงพิเศษสุดๆ together งานนี้คุณจะได้ลงมติเลือก 8 สมาชิก BNK48 & CGM48 ที่จะร่วมงานกันในโปรเจ็กต์นี้ เริ่มลงมติแล้ววันนี้ (16 Jan) จนถึง 15 Feb 2026 เวลา 12:00 น. ใช้ BNK Token ในการโหวตนะ! หลังจากสิ้นสุดการโหวต BNK Token ของคุณจะถูก Burn ทิ้ง Don't miss out this opportunity to show your love and support for these talented girls!\"",
+        "char_len": 466,
+        "eng_count": 35,
+        "cs_ratio": 13.8
+      },
+      {
+        "text": "มาแล้วจ้า MV เพลงรอง ที่รอหยิกหลังเพลง Title อย่าง We Go UP เปรี้ยวสุด เริดสุด ถ้า Blackpink มี Pretty Savage ที่คอยหยิกหลัง Shut down Babymonster ก็มี Psycho นี่แหละ ที่รอหยิกหลัง We Go Up อยู่ เป็น MV ที่ดูแล้วอยากดูซ้ำทันที เอาไป 10/10 แก้ไขข้อความเมื่อกลับจากงานแล้วพบว่าเพลงนี้สุดยอด เราจึงต้องมาดูกันอีกครั้งวันไหนๆ \n\nThis MV got me hook! The energy is high and the vibe is so cool! Can't help but wanna rewatch it over and over again.",
+        "char_len": 441,
+        "eng_count": 42,
+        "cs_ratio": 16.3
+      },
+      {
+        "text": "วันนี้เราจะแบ่งปันไฮไลท์เกี่ยวกับวัฒนธรรมของบริษัทของเรา เริ่มจาก Employee Spotlight of the Month - ทอม ฮอว์กินส์ เขาได้รับการคัดเลือกเนื่องจากความเอื้อมในการทำงานอย่างดี และการสั่งสมประสบการณ์ในโครงการ XYZ ซึ่งเป็นผลงานสำเร็จที่สำคัญสำหรับบริษัทของเรา\n\nToday's team achievement highlight is the successful launch of our new product, ABC! This wouldn't have been possible without the tireless efforts of our development team. Let's give it up for them!",
+        "char_len": 452,
+        "eng_count": 41,
+        "cs_ratio": 16.5
+      },
+      {
+        "text": "\"สวัสดี gang! วันนี้ผมมาแชร์ประสบการณ์ตั้ง Azure Cosmos DB กันครับ หลังจากตั้งค่า Connection strings ไปใช้แล้ว ผมก็ไปที่ App Service เอา Settings แล้วก็ Add Environment variables ด้วยค่ะ ที่ App settings ผมกำหนดค่าเป็น COSMOSDB_MONGO_URI และวาง PRIMARY CONNECTION STRING ที่ก๊อบปี้ไว้ลงไป Apply ได้สำเร็จ แล้วผมก็เขียนโค้ดทดสอบการเชื่อมต่อกัน แต่ก็มีปัญหา Error: No suitable servers found ... [connection refused calling hello ... สงสัยมันเพราะ Network Settings ไม่ถูกต้องใช่ไหมคะ?\"",
+        "char_len": 482,
+        "eng_count": 32,
+        "cs_ratio": 12.8
+      },
+      {
+        "text": "วันนี้ผมมาแชร์ประสบการณ์ ChatGPT Prompts ครับ จริงๆ อยากไป explore strategies สำหรับธุรกิจเทคโนโลยีสิ เพราะอยากเรียนรู้ culture ของ business type Anyway, ผมว่าเรื่อง Environment สำคัญมาก มันคือ keys to success เลยครับ\n\nสำหรับธุรกิจเทคโนโลยี เราควรจะมีกลยุทธ์ในการเพิ่มผลผลิตและสร้างความสนใจในการทำงานระยะไกลหรืองานที่ทำผ่านระบบเสมือนจริง Specifically, เราควรจะต้อง Explore strategies ที่เหมาะสมกับลักษณะของธุรกิจเรา เช่น \"Explore strategies to enhance productivity and engagement in virtual or remote",
+        "char_len": 1124,
+        "eng_count": 71,
+        "cs_ratio": 12.1
+      }
+    ]
+  }
+}

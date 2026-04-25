@@ -10,7 +10,7 @@ export const DetectionResult: React.FC<DetectionResultProps> = ({ result, percen
   const isAI = result.toUpperCase() === 'AI';
 
   return (
-    <div className="bg-surface-container-highest rounded-2xl p-10 space-y-10 sticky top-28 transition-all duration-500 shadow-sm">
+    <div className="bg-surface-container-highest rounded-2xl p-10 space-y-10 transition-all duration-500 shadow-sm">
       <div className="flex justify-between items-start">
         <span className="text-xs font-label tracking-widest text-outline uppercase font-bold">Forensic Result</span>
         <div className={`px-4 py-1.5 rounded-full text-xs font-bold font-label uppercase ${

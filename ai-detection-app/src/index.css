@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   --font-headline: "Inter", "Sarabun", sans-serif;
   --font-body: "Inter", "Sarabun", sans-serif;
@@ -84,4 +86,42 @@ body {
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline font-semibold tracking-tight;
   }
+}
+
+.dark {
+  --color-background: #0f1117;
+  --color-surface: #131a2a;
+  --color-surface-dim: #0a0f1c;
+  --color-surface-bright: #2a3355;
+  --color-surface-container-lowest: #090e1a;
+  --color-surface-container-low: #161d2e;
+  --color-surface-container: #1a2235;
+  --color-surface-container-high: #1f2840;
+  --color-surface-container-highest: #252f4a;
+  --color-surface-variant: #464455;
+  --color-surface-tint: #c3c0ff;
+  --color-on-background: #e2e5f5;
+  --color-on-surface: #e2e5f5;
+  --color-on-surface-variant: #c9c7dc;
+  --color-outline: #928fa4;
+  --color-outline-variant: #464455;
+  --color-primary: #c3c0ff;
+  --color-on-primary: #1a0e90;
+  --color-primary-container: #3323cc;
+  --color-on-primary-container: #e2dfff;
+  --color-inverse-primary: #3525cd;
+  --color-secondary: #4edea3;
+  --color-on-secondary: #00382a;
+  --color-secondary-container: #005236;
+  --color-on-secondary-container: #6ffbbe;
+  --color-tertiary: #ffb2b7;
+  --color-on-tertiary: #5c001a;
+  --color-tertiary-container: #92002a;
+  --color-on-tertiary-container: #ffdadb;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-inverse-surface: #e2e5f5;
+  --color-inverse-on-surface: #1a2235;
 }

@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { Sun, Moon } from 'lucide-react';
+import bgBento from './assets/bg_bento.png';
 import { Modal } from './components/common/Modal';
 import { Toast } from './components/common/Toast';
 import { DetectionResult } from './components/detection/DetectionResult';
@@ -18,6 +20,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<'textInput' | 'ocrMode'>('textInput');
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
   const [inputText, setInputText] = useState('');
+  const [analysisResult, setAnalysisResult] = useState<{ text: string; predictedClass: string; percentage: number } | null>(null);
 
   // Sync theme with document class
   useEffect(() => {
@@ -31,8 +34,11 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  // Mock inference result for demonstration
-  const mockResult = { text: "This is a sample text.", predictedClass: "AI", percentage: 90 };
+  const handleAnalyze = () => {
+    if (!inputText.trim()) return;
+    // TODO: replace with real API call
+    setAnalysisResult({ text: inputText, predictedClass: "Human", percentage: 85 });
+  };
 
   const handleReportClick = () => {
     setIsModalOpen(true);
@@ -46,9 +52,9 @@ function App() {
     setIsSubmitting(true);
     try {
       const mockFeedbackPayload = {
-        text: inputText || mockResult.text,
-        predictedClass: mockResult.predictedClass,
-        actualClass: "Human", // Assuming user reports it as Human
+        text: analysisResult?.text || inputText,
+        predictedClass: analysisResult?.predictedClass || '',
+        actualClass: analysisResult?.predictedClass === 'AI' ? 'Human' : 'AI',
       };
       await submitFeedback(mockFeedbackPayload);
       setToastMessage("Thank you for your feedback!");
@@ -75,26 +81,13 @@ function App() {
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold tracking-tighter text-on-surface font-headline">Transparent Guardian</span>
           </div>
-          <nav className="hidden md:flex items-center gap-8">
-            <a className="text-primary font-semibold text-sm tracking-tight transition-all duration-300" href="#">Detector</a>
-            <a className="text-on-surface-variant font-medium text-sm tracking-tight hover:text-primary transition-all duration-300" href="#">Research</a>
-            <a className="text-on-surface-variant font-medium text-sm tracking-tight hover:text-primary transition-all duration-300" href="#">API</a>
-          </nav>
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={toggleTheme}
               className="p-2 text-on-surface-variant hover:text-primary transition-all rounded-full hover:bg-surface-container-low"
               title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
             >
-              <span className="material-symbols-outlined">
-                {theme === 'light' ? 'dark_mode' : 'light_mode'}
-              </span>
-            </button>
-            <button className="p-2 text-on-surface-variant hover:text-primary transition-all rounded-full hover:bg-surface-container-low">
-              <span className="material-symbols-outlined">help_outline</span>
-            </button>
-            <button className="bg-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all">
-              Sign In
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
           </div>
         </div>
@@ -114,9 +107,9 @@ function App() {
         </section>
 
         {/* Main App Container */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Input Area */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className={`space-y-6 min-w-0 transition-all duration-700 ease-in-out ${analysisResult ? 'lg:w-[65%]' : 'w-full'}`}>
             <div className="bg-surface-container-low rounded-full p-2 flex gap-1 w-fit mx-auto md:mx-0 transition-colors duration-300">
               <button 
                 onClick={() => setActiveTab('textInput')}
@@ -136,20 +129,34 @@ function App() {
               <div className="bg-surface-container-low rounded-2xl p-8 min-h-[450px] flex flex-col transition-all duration-300 focus-within:bg-surface-container-high">
                 {activeTab === 'textInput' ? (
                   <>
-                    <textarea 
-                      className="w-full h-full flex-grow bg-transparent border-none focus:ring-0 text-xl thai-leading text-on-surface placeholder:text-outline-variant resize-none" 
+                    <textarea
+                      className={`w-full h-full flex-grow bg-transparent border-none focus:ring-0 text-xl thai-leading text-on-surface placeholder:text-outline-variant resize-none ${analysisResult ? 'cursor-default select-text' : ''}`}
                       placeholder="วางข้อความภาษาไทยที่ต้องการตรวจสอบที่นี่..."
                       value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
+                      onChange={(e) => { if (!analysisResult) setInputText(e.target.value); }}
+                      readOnly={!!analysisResult}
                     ></textarea>
                     <div className="flex justify-between items-center mt-8 pt-8">
                       <div className="text-sm font-label tracking-widest text-outline uppercase">
-                        Character Count: {inputText.length} / 5,000
+                        {analysisResult
+                          ? <span className="text-primary">Analysis complete</span>
+                          : <>Character Count: {inputText.length} / 5,000</>
+                        }
                       </div>
-                      <button className="signature-gradient text-white px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 active:scale-[0.98] shadow-xl shadow-primary/20 transition-all font-label uppercase">
-                        <span>Analyze Text</span>
-                        <span className="material-symbols-outlined">analytics</span>
-                      </button>
+                      {analysisResult ? (
+                        <button
+                          onClick={() => { setAnalysisResult(null); setInputText(''); }}
+                          className="border border-outline text-on-surface px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high active:scale-[0.98] transition-all font-label uppercase"
+                        >
+                          <span>New Analysis</span>
+                          <span className="material-symbols-outlined">refresh</span>
+                        </button>
+                      ) : (
+                        <button onClick={handleAnalyze} className="signature-gradient text-white px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 active:scale-[0.98] shadow-xl shadow-primary/20 transition-all font-label uppercase">
+                          <span>Analyze Text</span>
+                          <span className="material-symbols-outlined">analytics</span>
+                        </button>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -175,11 +182,11 @@ function App() {
             </div>
           </div>
 
-          {/* Results Sidebar */}
-          <div className="lg:col-span-4 space-y-6">
-            <DetectionResult 
-              result={mockResult.predictedClass}
-              percentage={mockResult.percentage}
+          {/* Results Sidebar — animates in after analysis */}
+          <div className={`flex-shrink-0 sticky top-28 self-start space-y-6 transition-all duration-[1200ms] ease-in-out overflow-hidden ${analysisResult ? 'lg:w-[33%] opacity-100 max-h-[900px]' : 'w-0 opacity-0 pointer-events-none max-h-0'}`}>
+            <DetectionResult
+              result={analysisResult?.predictedClass ?? ''}
+              percentage={analysisResult?.percentage ?? 0}
               onReportIncorrect={handleReportClick}
             />
 
@@ -201,7 +208,7 @@ function App() {
             <img 
               className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-20 grayscale group-hover:scale-105 transition-transform duration-700" 
               alt="neural network" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBcw_W6q7PvZsTyyXYoos-iTHjoiJ4S0FkhsdP51QRZ_mZjPU2vv0W0Q0uHzOSV05WfiZf5JwT-zW_coIkjdXQhX9BVdoUeaxy_0GHpIOkxwet5GN0Xk4MEyNsSmxHMZ8JpimLGctHjDreriXxSIAhFTJaAoePVHaqBD5XvoweiFQ6tGe8w3GiuZxcmQodIYenEVXh-Xd3cFDLdtC-SRe7wzKdRU5S6h_ptHPjl2AUhRQyPbSfr0FmdcDt3Yk-4vq-9g3BGRpMmpeE"
+              src={bgBento}
             />
             <div className="relative z-10 space-y-4">
               <h3 className="text-4xl font-bold tracking-tight font-headline">The Forensic Engine</h3>
@@ -215,7 +222,7 @@ function App() {
             <div className="space-y-4">
               <h3 className="text-3xl font-bold font-headline">Privacy-First Policy</h3>
               <p className="text-on-primary-container/80 text-sm thai-leading">
-                ข้อมูลทุกตัวอักษรจะถูกทำลายหลังการวิเคราะห์เสร็จสิ้น ไม่มีการจัดเก็บลงฐานข้อมูลเพื่อฝึกฝนโมเดลซ้ำ
+                ข้อมูลทุกตัวอักษรจะถูกทำลายหลังการวิเคราะห์เสร็จสิ้น ไม่มีการจัดเก็บลงฐานข้อมูลเพื่อฝึกฝนโมเดลซ้ำหากว่าไม่มีการยินยอมจากผู้ใช้ในการส่งข้อความเพื่อปรับปรุงความแม่นยำของโมเดล
               </p>
             </div>
           </div>
@@ -228,13 +235,8 @@ function App() {
           <div className="flex flex-col gap-2">
             <span className="font-black text-on-surface text-xl font-headline">Transparent Guardian</span>
             <p className="text-on-surface-variant text-[10px] tracking-widest uppercase font-label font-bold">
-              © 2024 The Transparent Guardian. Powered by WangchanBERTa. Clinical, precise, and indisputable forensic analysis.
+              © 2025 The Transparent Guardian. Powered by WangchanBERTa. Clinical, precise, and indisputable forensic analysis.
             </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-8">
-            <a className="text-on-surface-variant font-medium text-xs tracking-wide uppercase hover:text-primary transition-colors font-label" href="#">GitHub</a>
-            <a className="text-on-surface-variant font-medium text-xs tracking-wide uppercase hover:text-primary transition-colors font-label" href="#">Privacy Policy</a>
-            <a className="text-on-surface-variant font-medium text-xs tracking-wide uppercase hover:text-primary transition-colors underline decoration-2 underline-offset-4 decoration-primary/30 font-label" href="#">Thai NLP Docs</a>
           </div>
         </div>
       </footer>
@@ -250,19 +252,13 @@ function App() {
                 <h2 className="text-3xl font-bold tracking-tight font-headline">Privacy Consensus</h2>
               </div>
               <p className="text-on-surface-variant thai-leading text-lg">
-                ก่อนเริ่มต้นใช้งาน: เราเคารพในความเป็นส่วนตัวของคุณ ข้อมูลข้อความที่คุณวิเคราะห์จะถูกส่งผ่านช่องทางที่เข้ารหัส และจะถูกลบออกจากหน่วยความจำชั่วคราวทันทีหลังแสดงผล
+                ก่อนเริ่มต้นใช้งาน: เราเคารพในความเป็นส่วนตัวของคุณ ข้อมูลข้อความที่คุณวิเคราะห์จะประมวลผลบนอุปกรณ์ของคุณเท่านั้น ไม่มีการส่งข้อมูลออกไปยังเซิร์ฟเวอร์หรือจัดเก็บไว้ที่ใดๆ ข้อมูลจะถูกทำลายทันทีหลังการวิเคราะห์เสร็จสิ้น คุณสามารถใช้แอปนี้ได้อย่างมั่นใจในความปลอดภัยและความเป็นส่วนตัวของข้อมูลของคุณ
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-6">
-              <button 
-                onClick={() => setShowPrivacyModal(false)}
-                className="py-5 rounded-xl border border-outline-variant font-bold text-sm hover:bg-surface-container transition-all font-label uppercase"
-              >
-                DECLINE
-              </button>
-              <button 
+            <div className="flex justify-center">
+              <button
                 onClick={handlePrivacyConsent}
-                className="py-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20 font-label uppercase"
+                className="w-full py-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20 font-label uppercase"
               >
                 I UNDERSTAND
               </button>
@@ -281,14 +277,14 @@ function App() {
         title="ช่วยเราพัฒนาความแม่นยำ (Help Us Improve)"
       >
         <div className="p-2">
-          <p className="text-base mb-6 thai-leading text-on-surface">
+          <p className="text-base mb-6 thai-leading text-slate-500">
             คุณยินยอมที่จะส่งข้อความนี้แบบไม่ระบุตัวตนเพื่อใช้ในการปรับปรุงโมเดลหรือไม่? (Do you consent to share this text anonymously with the developer to improve the WangchanBERTa model? No personal data or login is required.)
           </p>
           <div className="flex justify-end gap-3">
             <button onClick={handleModalClose} disabled={isSubmitting} className="px-6 py-3 rounded-xl bg-surface-container-high text-on-surface font-bold text-sm hover:bg-surface-container-highest transition-all uppercase font-label">
               ยกเลิก (Cancel)
             </button>
-            <button onClick={handleAgreeAndSend} disabled={isSubmitting} className="px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 transition-all uppercase font-label shadow-lg shadow-primary/20">
+            <button onClick={handleAgreeAndSend} disabled={isSubmitting} className="px-6 py-3 rounded-xl bg-rose-500 text-white font-bold text-sm hover:opacity-90 transition-all uppercase font-label shadow-lg shadow-primary/20">
               {isSubmitting ? 'Sending...' : 'ยินยอมและส่งข้อมูล (Agree & Send)'}
             </button>
           </div>
