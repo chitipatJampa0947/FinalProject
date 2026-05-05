@@ -6,24 +6,100 @@ ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
 const MAX_LENGTH = 416;
 const HF_REPO = 'Chitipat0947/wangchanberta-ai-detector';
 const ONNX_URL = `https://huggingface.co/${HF_REPO}/resolve/main/model_quantized.onnx`;
+const MODEL_CACHE = 'ai-detector-model-v1';
 
 type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
 
 let _tokenizer: Tokenizer | null = null;
 let _session: ort.InferenceSession | null = null;
+let _loadingPromise: Promise<void> | null = null;
 
-export async function loadModel(onProgress?: (msg: string) => void): Promise<void> {
+async function fetchModelBytes(
+  onProgress?: (msg: string, pct?: number) => void
+): Promise<Uint8Array> {
+  const cache = 'caches' in self ? await caches.open(MODEL_CACHE) : null;
+
+  if (cache) {
+    const hit = await cache.match(ONNX_URL);
+    if (hit) {
+      onProgress?.('โหลดโมเดลจากแคช...');
+      const buf = await hit.arrayBuffer();
+      return new Uint8Array(buf);
+    }
+  }
+
+  onProgress?.('กำลังดาวน์โหลดโมเดล (~102 MB)...', 0);
+  const res = await fetch(ONNX_URL);
+  if (!res.ok) throw new Error(`Model fetch failed: ${res.status}`);
+
+  const total = Number(res.headers.get('content-length')) || 0;
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const buf = await res.arrayBuffer();
+    if (cache) await cache.put(ONNX_URL, new Response(buf));
+    return new Uint8Array(buf);
+  }
+
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) {
+      const pct = Math.round((received / total) * 100);
+      onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+    }
+  }
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) {
+    bytes.set(c, offset);
+    offset += c.length;
+  }
+
+  if (cache) {
+    await cache.put(
+      ONNX_URL,
+      new Response(bytes, {
+        headers: { 'content-type': 'application/octet-stream', 'content-length': String(received) },
+      })
+    );
+  }
+
+  return bytes;
+}
+
+export async function loadModel(
+  onProgress?: (msg: string, pct?: number) => void
+): Promise<void> {
   if (_tokenizer && _session) return;
+  if (_loadingPromise) return _loadingPromise;
 
-  onProgress?.('กำลังโหลด Tokenizer...');
-  _tokenizer = await AutoTokenizer.from_pretrained(HF_REPO);
+  _loadingPromise = (async () => {
+    onProgress?.('กำลังโหลด Tokenizer...');
+    _tokenizer = await AutoTokenizer.from_pretrained(HF_REPO);
 
-  onProgress?.('กำลังโหลดโมเดล (~102 MB)...');
-  _session = await ort.InferenceSession.create(ONNX_URL, {
-    executionProviders: ['wasm'],
+    const bytes = await fetchModelBytes(onProgress);
+
+    onProgress?.('กำลังเตรียมโมเดล...');
+    _session = await ort.InferenceSession.create(bytes, {
+      executionProviders: ['wasm'],
+    });
+
+    onProgress?.('พร้อมวิเคราะห์');
+  })().catch(err => {
+    _loadingPromise = null;
+    throw err;
   });
 
-  onProgress?.('พร้อมวิเคราะห์');
+  return _loadingPromise;
+}
+
+export async function clearModelCache(): Promise<void> {
+  if ('caches' in self) await caches.delete(MODEL_CACHE);
 }
 
 function toInt64Array(source: ArrayLike<number>): BigInt64Array {

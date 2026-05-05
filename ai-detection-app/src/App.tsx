@@ -24,6 +24,9 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<{ text: string; predictedClass: string; percentage: number } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [modelStatus, setModelStatus] = useState<string>('');
+  const [modelPct, setModelPct] = useState<number | null>(null);
+  const [isModelLoading, setIsModelLoading] = useState(false);
+  const [isModelReady, setIsModelReady] = useState(false);
 
   // Sync theme with document class
   useEffect(() => {
@@ -37,12 +40,40 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
+  const preloadModel = async () => {
+    if (isModelReady || isModelLoading) return;
+    setIsModelLoading(true);
+    setModelStatus('กำลังเตรียมโมเดล...');
+    setModelPct(0);
+    try {
+      await loadModel((msg, pct) => {
+        setModelStatus(msg);
+        if (typeof pct === 'number') setModelPct(pct);
+      });
+      setIsModelReady(true);
+      setModelStatus('พร้อมวิเคราะห์');
+      setModelPct(100);
+    } catch (err) {
+      console.error('Model preload failed:', err);
+      setModelStatus('โหลดโมเดลล้มเหลว — จะลองใหม่เมื่อกด Analyze');
+    } finally {
+      setIsModelLoading(false);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!inputText.trim() || inputText.length <= 200) return;
     setIsAnalyzing(true);
-    setModelStatus('');
+    if (!isModelReady) {
+      setModelStatus('');
+      setModelPct(0);
+    }
     try {
-      await loadModel((msg) => setModelStatus(msg));
+      await loadModel((msg, pct) => {
+        setModelStatus(msg);
+        if (typeof pct === 'number') setModelPct(pct);
+      });
+      setIsModelReady(true);
       const { label, probability } = await detectAI(inputText);
       setAnalysisResult({
         text: inputText,
@@ -56,6 +87,7 @@ function App() {
     } finally {
       setIsAnalyzing(false);
       setModelStatus('');
+      setModelPct(null);
     }
   };
 
@@ -90,6 +122,7 @@ function App() {
 
   const handlePrivacyConsent = () => {
     setShowPrivacyModal(false);
+    void preloadModel();
   };
 
   return (
@@ -143,6 +176,26 @@ function App() {
                 OCR Mode
               </button>
             </div>
+
+            {(isModelLoading || (!isModelReady && modelStatus)) && (
+              <div className="bg-surface-container-low rounded-2xl px-6 py-4 space-y-2 transition-colors duration-300">
+                <div className="flex justify-between items-center text-xs font-label uppercase tracking-widest">
+                  <span className="text-on-surface-variant">{modelStatus || 'กำลังเตรียมโมเดล...'}</span>
+                  {typeof modelPct === 'number' && (
+                    <span className="text-primary font-bold">{modelPct}%</span>
+                  )}
+                </div>
+                <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+                  <div
+                    className="h-full signature-gradient transition-[width] duration-300 ease-out"
+                    style={{
+                      width:
+                        typeof modelPct === 'number' ? `${modelPct}%` : '20%',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="relative group">
               <div className="bg-surface-container-low rounded-2xl p-8 min-h-[450px] flex flex-col transition-all duration-300 focus-within:bg-surface-container-high">
