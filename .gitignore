@@ -19,9 +19,6 @@ settings.local.json
 ~$*.docx
 ~$*.xlsx
 
-# Document folder — Thai long filenames break Linux filesystem (>255 bytes)
-Document and Draft/
-
 # Large ML model files (>100MB, not suitable for GitHub without Git LFS)
 scripts/wangchanberta-ai-detector/
 scripts/onnx_model/
