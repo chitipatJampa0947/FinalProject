@@ -66,11 +66,12 @@ export async function detectAI(
 
   const feeds: Record<string, ort.Tensor> = { input_ids: inputIds, attention_mask: attentionMask };
 
-  if (_session.inputNames.includes('token_type_ids')) {
+  const session = _session!;
+  if (session.inputNames.includes('token_type_ids')) {
     feeds.token_type_ids = new ort.Tensor('int64', new BigInt64Array(MAX_LENGTH), [1, MAX_LENGTH]);
   }
 
-  const output = await _session.run(feeds);
+  const output = await session.run(feeds);
   const logits = output['logits'].data as Float32Array;
   const probs = softmax(logits);
 
