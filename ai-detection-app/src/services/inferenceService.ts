@@ -5,7 +5,7 @@ ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
 
 const MAX_LENGTH = 416;
 const HF_REPO = 'Chitipat0947/wangchanberta-ai-detector';
-const ONNX_URL = `https://huggingface.co/${HF_REPO}/resolve/main/model_quantized.onnx`;
+const ONNX_URL = 'https://pub-6134e6ba6a5149f7b5872db48d5182f3.r2.dev/model_quantized.onnx';
 const MODEL_CACHE = 'ai-detector-model-v1';
 
 type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
