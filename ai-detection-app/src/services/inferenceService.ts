@@ -5,7 +5,7 @@ ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
 
 const MAX_LENGTH = 416;
 const HF_REPO = 'Chitipat0947/wangchanberta-ai-detector';
-const ONNX_URL = `https://huggingface.co/${HF_REPO}/resolve/main/model_quantized.onnx`;
+const ONNX_URL = 'https://pub-6134e6ba6a5149f7b5872db48d5182f3.r2.dev/model_quantized.onnx';
 const MODEL_CACHE = 'ai-detector-model-v1';
 
 type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
@@ -13,6 +13,60 @@ type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
 let _tokenizer: Tokenizer | null = null;
 let _session: ort.InferenceSession | null = null;
 let _loadingPromise: Promise<void> | null = null;
+
+const PARALLEL_CHUNKS = 6;
+
+async function fetchInChunks(
+  url: string,
+  total: number,
+  onProgress?: (msg: string, pct?: number) => void
+): Promise<Uint8Array> {
+  const chunkSize = Math.ceil(total / PARALLEL_CHUNKS);
+  let received = 0;
+
+  const ranges = Array.from({ length: PARALLEL_CHUNKS }, (_, i) => {
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize - 1, total - 1);
+    return { start, end };
+  });
+
+  const parts = await Promise.all(
+    ranges.map(async ({ start, end }) => {
+      const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+      if (!res.ok && res.status !== 206) {
+        throw new Error(`Range fetch failed: ${res.status}`);
+      }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        const buf = await res.arrayBuffer();
+        received += buf.byteLength;
+        const pct = Math.round((received / total) * 100);
+        onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+        return new Uint8Array(buf);
+      }
+      const pieces: Uint8Array[] = [];
+      let len = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        pieces.push(value);
+        len += value.length;
+        received += value.length;
+        const pct = Math.round((received / total) * 100);
+        onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+      }
+      const merged = new Uint8Array(len);
+      let off = 0;
+      for (const p of pieces) { merged.set(p, off); off += p.length; }
+      return merged;
+    })
+  );
+
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const p of parts) { out.set(p, offset); offset += p.length; }
+  return out;
+}
 
 async function fetchModelBytes(
   onProgress?: (msg: string, pct?: number) => void
@@ -29,42 +83,60 @@ async function fetchModelBytes(
   }
 
   onProgress?.('กำลังดาวน์โหลดโมเดล (~102 MB)...', 0);
-  const res = await fetch(ONNX_URL);
-  if (!res.ok) throw new Error(`Model fetch failed: ${res.status}`);
 
-  const total = Number(res.headers.get('content-length')) || 0;
-  const reader = res.body?.getReader();
-  if (!reader) {
-    const buf = await res.arrayBuffer();
-    if (cache) await cache.put(ONNX_URL, new Response(buf));
-    return new Uint8Array(buf);
-  }
-
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (total) {
-      const pct = Math.round((received / total) * 100);
-      onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+  let total = 0;
+  let finalUrl = ONNX_URL;
+  try {
+    const probe = await fetch(ONNX_URL, { headers: { Range: 'bytes=0-0' } });
+    if (probe.status === 206) {
+      const cr = probe.headers.get('content-range') || '';
+      const m = /\/(\d+)\s*$/.exec(cr);
+      if (m) total = Number(m[1]);
+      if (probe.url) finalUrl = probe.url;
     }
+    await probe.body?.cancel();
+  } catch {
+    // ignore — fall through to streaming
   }
 
-  const bytes = new Uint8Array(received);
-  let offset = 0;
-  for (const c of chunks) {
-    bytes.set(c, offset);
-    offset += c.length;
+  let bytes: Uint8Array;
+  if (total > 0) {
+    bytes = await fetchInChunks(finalUrl, total, onProgress);
+  } else {
+    const res = await fetch(ONNX_URL);
+    if (!res.ok) throw new Error(`Model fetch failed: ${res.status}`);
+    const contentLen = Number(res.headers.get('content-length')) || 0;
+    const reader = res.body?.getReader();
+    if (!reader) {
+      const buf = await res.arrayBuffer();
+      bytes = new Uint8Array(buf);
+    } else {
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (contentLen) {
+          const pct = Math.round((received / contentLen) * 100);
+          onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+        }
+      }
+      bytes = new Uint8Array(received);
+      let offset = 0;
+      for (const c of chunks) { bytes.set(c, offset); offset += c.length; }
+    }
   }
 
   if (cache) {
     await cache.put(
       ONNX_URL,
-      new Response(bytes, {
-        headers: { 'content-type': 'application/octet-stream', 'content-length': String(received) },
+      new Response(new Blob([new Uint8Array(bytes)]), {
+        headers: {
+          'content-type': 'application/octet-stream',
+          'content-length': String(bytes.length),
+        },
       })
     );
   }
@@ -79,10 +151,13 @@ export async function loadModel(
   if (_loadingPromise) return _loadingPromise;
 
   _loadingPromise = (async () => {
-    onProgress?.('กำลังโหลด Tokenizer...');
-    _tokenizer = await AutoTokenizer.from_pretrained(HF_REPO);
+    onProgress?.('กำลังโหลด Tokenizer + โมเดล...');
 
-    const bytes = await fetchModelBytes(onProgress);
+    const [tok, bytes] = await Promise.all([
+      AutoTokenizer.from_pretrained(HF_REPO),
+      fetchModelBytes(onProgress),
+    ]);
+    _tokenizer = tok;
 
     onProgress?.('กำลังเตรียมโมเดล...');
     _session = await ort.InferenceSession.create(bytes, {
