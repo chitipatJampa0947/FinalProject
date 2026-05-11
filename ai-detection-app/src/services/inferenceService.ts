@@ -15,6 +15,15 @@ let _session: ort.InferenceSession | null = null;
 let _loadingPromise: Promise<void> | null = null;
 
 const PARALLEL_CHUNKS = 6;
+const DOWNLOAD_MSG = 'กำลังดาวน์โหลดโมเดล';
+
+function mergeChunks(chunks: Uint8Array[]): Uint8Array {
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out;
+}
 
 async function fetchInChunks(
   url: string,
@@ -41,31 +50,23 @@ async function fetchInChunks(
         const buf = await res.arrayBuffer();
         received += buf.byteLength;
         const pct = Math.round((received / total) * 100);
-        onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+        onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
         return new Uint8Array(buf);
       }
       const pieces: Uint8Array[] = [];
-      let len = 0;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         pieces.push(value);
-        len += value.length;
         received += value.length;
         const pct = Math.round((received / total) * 100);
-        onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+        onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
       }
-      const merged = new Uint8Array(len);
-      let off = 0;
-      for (const p of pieces) { merged.set(p, off); off += p.length; }
-      return merged;
+      return mergeChunks(pieces);
     })
   );
 
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const p of parts) { out.set(p, offset); offset += p.length; }
-  return out;
+  return mergeChunks(parts);
 }
 
 async function fetchModelBytes(
@@ -95,9 +96,7 @@ async function fetchModelBytes(
       if (probe.url) finalUrl = probe.url;
     }
     await probe.body?.cancel();
-  } catch {
-    // ignore — fall through to streaming
-  }
+  } catch { /* ignore */ }
 
   let bytes: Uint8Array;
   if (total > 0) {
@@ -120,19 +119,17 @@ async function fetchModelBytes(
         received += value.length;
         if (contentLen) {
           const pct = Math.round((received / contentLen) * 100);
-          onProgress?.(`กำลังดาวน์โหลดโมเดล ${pct}%`, pct);
+          onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
         }
       }
-      bytes = new Uint8Array(received);
-      let offset = 0;
-      for (const c of chunks) { bytes.set(c, offset); offset += c.length; }
+      bytes = mergeChunks(chunks);
     }
   }
 
   if (cache) {
     await cache.put(
       ONNX_URL,
-      new Response(new Blob([new Uint8Array(bytes)]), {
+      new Response(bytes, {
         headers: {
           'content-type': 'application/octet-stream',
           'content-length': String(bytes.length),
