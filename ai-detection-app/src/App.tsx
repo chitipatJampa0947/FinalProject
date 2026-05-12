@@ -5,7 +5,15 @@ import { Modal } from './components/common/Modal';
 import { Toast } from './components/common/Toast';
 import { DetectionResult } from './components/detection/DetectionResult';
 import { submitFeedback } from './services/feedbackService';
-import { loadModel, detectAI } from './services/inferenceService';
+
+type InferenceModule = typeof import('./services/inferenceService');
+let _inferenceModulePromise: Promise<InferenceModule> | null = null;
+const getInference = (): Promise<InferenceModule> => {
+  if (!_inferenceModulePromise) {
+    _inferenceModulePromise = import('./services/inferenceService');
+  }
+  return _inferenceModulePromise;
+};
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -46,6 +54,7 @@ function App() {
     setModelStatus('กำลังเตรียมโมเดล...');
     setModelPct(0);
     try {
+      const { loadModel } = await getInference();
       await loadModel((msg, pct) => {
         setModelStatus(msg);
         if (typeof pct === 'number') setModelPct(pct);
@@ -69,6 +78,7 @@ function App() {
       setModelPct(0);
     }
     try {
+      const { loadModel, detectAI } = await getInference();
       await loadModel((msg, pct) => {
         setModelStatus(msg);
         if (typeof pct === 'number') setModelPct(pct);
