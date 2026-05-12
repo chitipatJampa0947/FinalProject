@@ -150,7 +150,7 @@ async function fetchModelBytes(
   if (cache) {
     await cache.put(
       ONNX_URL,
-      new Response(bytes, {
+      new Response(bytes as BodyInit, {
         headers: {
           'content-type': 'application/octet-stream',
           'content-length': String(bytes.length),
