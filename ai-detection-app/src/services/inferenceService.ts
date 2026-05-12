@@ -15,7 +15,19 @@ let _session: ort.InferenceSession | null = null;
 let _loadingPromise: Promise<void> | null = null;
 
 const PARALLEL_CHUNKS = 6;
+const MOBILE_CHUNKS = 2;
+const PROBE_TIMEOUT_MS = 8_000;
 const DOWNLOAD_MSG = 'กำลังดาวน์โหลดโมเดล';
+
+function isMobile(): boolean {
+  return typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+}
+
+function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), ms);
+  return fetch(url, { ...init, signal: ac.signal }).finally(() => clearTimeout(id));
+}
 
 function mergeChunks(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((s, c) => s + c.length, 0);
@@ -30,10 +42,11 @@ async function fetchInChunks(
   total: number,
   onProgress?: (msg: string, pct?: number) => void
 ): Promise<Uint8Array> {
-  const chunkSize = Math.ceil(total / PARALLEL_CHUNKS);
+  const numChunks = isMobile() ? MOBILE_CHUNKS : PARALLEL_CHUNKS;
+  const chunkSize = Math.ceil(total / numChunks);
   let received = 0;
 
-  const ranges = Array.from({ length: PARALLEL_CHUNKS }, (_, i) => {
+  const ranges = Array.from({ length: numChunks }, (_, i) => {
     const start = i * chunkSize;
     const end = Math.min(start + chunkSize - 1, total - 1);
     return { start, end };
@@ -41,7 +54,11 @@ async function fetchInChunks(
 
   const parts = await Promise.all(
     ranges.map(async ({ start, end }) => {
-      const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+      const res = await fetchWithTimeout(
+        url,
+        { headers: { Range: `bytes=${start}-${end}` } },
+        120_000
+      );
       if (!res.ok && res.status !== 206) {
         throw new Error(`Range fetch failed: ${res.status}`);
       }
@@ -88,7 +105,11 @@ async function fetchModelBytes(
   let total = 0;
   let finalUrl = ONNX_URL;
   try {
-    const probe = await fetch(ONNX_URL, { headers: { Range: 'bytes=0-0' } });
+    const probe = await fetchWithTimeout(
+      ONNX_URL,
+      { headers: { Range: 'bytes=0-0' } },
+      PROBE_TIMEOUT_MS
+    );
     if (probe.status === 206) {
       const cr = probe.headers.get('content-range') || '';
       const m = /\/(\d+)\s*$/.exec(cr);
@@ -96,7 +117,7 @@ async function fetchModelBytes(
       if (probe.url) finalUrl = probe.url;
     }
     await probe.body?.cancel();
-  } catch { /* ignore */ }
+  } catch { /* ignore — fall back to simple fetch */ }
 
   let bytes: Uint8Array;
   if (total > 0) {
