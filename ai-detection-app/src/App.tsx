@@ -22,7 +22,6 @@ function App() {
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'textInput' | 'ocrMode'>('textInput');
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
   const [inputText, setInputText] = useState('');
   const [submittedText, setSubmittedText] = useState('');
@@ -157,74 +156,39 @@ function App() {
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Input Area */}
           <div className={`space-y-6 min-w-0 transition-all duration-700 ease-in-out ${analysisResult ? 'lg:w-[65%]' : 'w-full'}`}>
-            <div className="bg-surface-container-low rounded-full p-2 flex gap-1 w-fit mx-auto md:mx-0 transition-colors duration-300">
-              <button 
-                onClick={() => setActiveTab('textInput')}
-                className={`px-6 py-2.5 rounded-full text-sm transition-all ${activeTab === 'textInput' ? 'bg-surface shadow-sm text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container-high font-medium'}`}
-              >
-                Text Input
-              </button>
-              <button 
-                onClick={() => setActiveTab('ocrMode')}
-                className={`px-6 py-2.5 rounded-full text-sm transition-all ${activeTab === 'ocrMode' ? 'bg-surface shadow-sm text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container-high font-medium'}`}
-              >
-                OCR Mode
-              </button>
-            </div>
-
             {(isModelLoading || (!isModelReady && modelStatus)) && (
               <ModelLoader status={modelStatus} percentage={modelProgress} />
             )}
 
             <div className="relative group">
               <div className="bg-surface-container-low rounded-2xl p-8 min-h-[450px] flex flex-col transition-all duration-300 focus-within:bg-surface-container-high">
-                {activeTab === 'textInput' ? (
-                  analysisResult ? (
-                    <>
-                      <textarea
-                        className="w-full h-full flex-grow bg-transparent border-none focus:ring-0 text-xl thai-leading text-on-surface placeholder:text-outline-variant resize-none cursor-default select-text"
-                        value={inputText}
-                        readOnly
-                      ></textarea>
-                      <div className="flex justify-between items-center mt-8 pt-8">
-                        <div className="text-sm font-label tracking-widest uppercase">
-                          <span className="text-primary">Analysis complete</span>
-                        </div>
-                        <button
-                          onClick={() => { resetInference(); setInputText(''); setSubmittedText(''); }}
-                          className="border border-outline text-on-surface px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high active:scale-[0.98] transition-all font-label uppercase"
-                        >
-                          <span>New Analysis</span>
-                          <span className="material-symbols-outlined">refresh</span>
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <TextInputBox
+                {analysisResult ? (
+                  <>
+                    <textarea
+                      className="w-full h-full flex-grow bg-transparent border-none focus:ring-0 text-xl thai-leading text-on-surface placeholder:text-outline-variant resize-none cursor-default select-text"
                       value={inputText}
-                      onChange={setInputText}
-                      onAnalyze={handleAnalyze}
-                      isAnalyzing={isBusy}
-                    />
-                  )
-                ) : (
-                  <div className="flex-grow flex flex-col items-center justify-center text-center space-y-8 py-12">
-                    <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center transition-colors duration-300">
-                      <span className="material-symbols-outlined text-5xl text-primary">image_search</span>
-                    </div>
-                    <div className="space-y-4">
-                      <h3 className="text-3xl font-bold font-headline">OCR Document Scan</h3>
-                      <p className="text-on-surface-variant max-w-sm mx-auto thai-leading">
-                        อัปโหลดรูปภาพหรือไฟล์ PDF เพื่อสกัดข้อความภาษาไทยออกมาวิเคราะห์
-                      </p>
-                    </div>
-                    <div className="flex gap-4">
-                      <button className="signature-gradient text-white px-8 py-4 rounded-xl font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all uppercase font-label">
-                        Upload Image
+                      readOnly
+                    ></textarea>
+                    <div className="flex justify-between items-center mt-8 pt-8">
+                      <div className="text-sm font-label tracking-widest uppercase">
+                        <span className="text-primary">Analysis complete</span>
+                      </div>
+                      <button
+                        onClick={() => { resetInference(); setInputText(''); setSubmittedText(''); }}
+                        className="border border-outline text-on-surface px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high active:scale-[0.98] transition-all font-label uppercase"
+                      >
+                        <span>New Analysis</span>
+                        <span className="material-symbols-outlined">refresh</span>
                       </button>
-                      {/* Tesseract.js logic will be integrated here later */}
                     </div>
-                  </div>
+                  </>
+                ) : (
+                  <TextInputBox
+                    value={inputText}
+                    onChange={setInputText}
+                    onAnalyze={handleAnalyze}
+                    isAnalyzing={isBusy}
+                  />
                 )}
               </div>
             </div>
