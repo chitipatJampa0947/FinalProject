@@ -7,9 +7,11 @@ import { ModelLoader } from './components/common/ModelLoader';
 import { DetectionResult } from './components/detection/DetectionResult';
 import { TextInputBox } from './components/detection/TextInputBox';
 import { AdminDashboard } from './components/admin/AdminDashboard';
-import { submitFeedback } from './services/feedbackService';
 import { addReport } from './services/reportStore';
 import { useAIInference } from './hooks/useAIInference';
+import { supabase } from './lib/supabaseClient';
+
+type ExpectedLabel = 'Human' | 'AI';
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -22,6 +24,7 @@ function App() {
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expectedLabel, setExpectedLabel] = useState<ExpectedLabel | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
   const [inputText, setInputText] = useState('');
   const [submittedText, setSubmittedText] = useState('');
@@ -78,30 +81,42 @@ function App() {
   };
 
   const handleReportClick = () => {
+    setExpectedLabel(null);
     setIsModalOpen(true);
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
+    setExpectedLabel(null);
   };
 
-  const handleAgreeAndSend = async () => {
+  const handleReportSubmit = async () => {
+    if (!expectedLabel) return;
     setIsSubmitting(true);
     try {
       const text = analysisResult?.text || inputText;
       const predictedClass = analysisResult?.predictedClass || '';
-      const actualClass = predictedClass === 'AI' ? 'Human' : 'AI';
       const aiPercentage = analysisResult?.aiPercentage ?? 0;
+      const userExpectedLabel: 'Human' | 'AI-Generated' =
+        expectedLabel === 'AI' ? 'AI-Generated' : 'Human';
 
-      await submitFeedback({ text, predictedClass, actualClass });
-      addReport({ text, predictedClass, actualClass, aiPercentage });
+      const { error } = await supabase.from('user_reports').insert({
+        reported_text: text,
+        ai_probability: aiPercentage,
+        user_expected_label: userExpectedLabel,
+        status: 'pending',
+      });
+      if (error) throw error;
+
+      addReport({ text, predictedClass, actualClass: expectedLabel, aiPercentage });
 
       setToastMessage('Thank you for your feedback!');
       setIsToastVisible(true);
       setIsModalOpen(false);
-    } catch (error) {
-      console.error('Feedback submission failed:', error);
-      setToastMessage('Failed to send feedback.');
+      setExpectedLabel(null);
+    } catch (err) {
+      console.error('Report submission failed:', err);
+      setToastMessage('Failed to send report. Please try again.');
       setIsToastVisible(true);
     } finally {
       setIsSubmitting(false);
@@ -298,22 +313,56 @@ function App() {
         </div>
       )}
 
-      {/* Feedback Modal */}
+      {/* Report Error Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={handleModalClose}
-        title="ช่วยเราพัฒนาความแม่นยำ (Help Us Improve)"
+        title="What should this text be classified as?"
       >
-        <div className="p-2">
-          <p className="text-base mb-6 thai-leading text-slate-500">
-            คุณยินยอมที่จะส่งข้อความนี้แบบไม่ระบุตัวตนเพื่อใช้ในการปรับปรุงโมเดลหรือไม่? (Do you consent to share this text anonymously with the developer to improve the WangchanBERTa model? No personal data or login is required.)
+        <div className="p-2 space-y-6">
+          <p className="text-sm thai-leading text-on-surface-variant">
+            เลือกหมวดที่ถูกต้องเพื่อช่วยปรับปรุงโมเดล (Pick the correct label to help improve the model.)
           </p>
-          <div className="flex justify-end gap-3">
-            <button onClick={handleModalClose} disabled={isSubmitting} className="px-6 py-3 rounded-xl bg-surface-container-high text-on-surface font-bold text-sm hover:bg-surface-container-highest transition-all uppercase font-label">
-              ยกเลิก (Cancel)
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setExpectedLabel('Human')}
+              disabled={isSubmitting}
+              className={`py-5 rounded-xl font-bold text-sm uppercase font-label transition-all ${
+                expectedLabel === 'Human'
+                  ? 'bg-secondary text-white shadow-lg'
+                  : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+              }`}
+            >
+              Human
             </button>
-            <button onClick={handleAgreeAndSend} disabled={isSubmitting} className="px-6 py-3 rounded-xl bg-rose-500 text-white font-bold text-sm hover:opacity-90 transition-all uppercase font-label shadow-lg shadow-primary/20">
-              {isSubmitting ? 'Sending...' : 'ยินยอมและส่งข้อมูล (Agree & Send)'}
+            <button
+              type="button"
+              onClick={() => setExpectedLabel('AI')}
+              disabled={isSubmitting}
+              className={`py-5 rounded-xl font-bold text-sm uppercase font-label transition-all ${
+                expectedLabel === 'AI'
+                  ? 'bg-primary text-white shadow-lg'
+                  : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+              }`}
+            >
+              AI-Generated
+            </button>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={handleModalClose}
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-xl bg-surface-container-high text-on-surface font-bold text-sm hover:bg-surface-container-highest transition-all uppercase font-label"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleReportSubmit}
+              disabled={isSubmitting || !expectedLabel}
+              className="px-6 py-3 rounded-xl bg-rose-500 text-white font-bold text-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all uppercase font-label shadow-lg shadow-primary/20"
+            >
+              {isSubmitting ? 'Sending...' : 'Submit Report'}
             </button>
           </div>
         </div>
