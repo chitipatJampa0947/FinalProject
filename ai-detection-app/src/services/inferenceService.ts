@@ -52,11 +52,8 @@ async function fetchInChunks(
 ): Promise<Uint8Array> {
   const numChunks = isMobile() ? MOBILE_CHUNKS : PARALLEL_CHUNKS;
   const chunkSize = Math.ceil(total / numChunks);
-  const numChunks = isMobile() ? MOBILE_CHUNKS : PARALLEL_CHUNKS;
-  const chunkSize = Math.ceil(total / numChunks);
   let received = 0;
 
-  const ranges = Array.from({ length: numChunks }, (_, i) => {
   const ranges = Array.from({ length: numChunks }, (_, i) => {
     const start = i * chunkSize;
     const end = Math.min(start + chunkSize - 1, total - 1);
@@ -65,11 +62,6 @@ async function fetchInChunks(
 
   const parts = await Promise.all(
     ranges.map(async ({ start, end }) => {
-      const res = await fetchWithTimeout(
-        url,
-        { headers: { Range: `bytes=${start}-${end}` } },
-        120_000
-      );
       const res = await fetchWithTimeout(
         url,
         { headers: { Range: `bytes=${start}-${end}` } },
@@ -84,7 +76,6 @@ async function fetchInChunks(
         received += buf.byteLength;
         const pct = Math.round((received / total) * 100);
         onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
-        onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
         return new Uint8Array(buf);
       }
       const pieces: Uint8Array[] = [];
@@ -95,14 +86,11 @@ async function fetchInChunks(
         received += value.length;
         const pct = Math.round((received / total) * 100);
         onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
-        onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
       }
-      return mergeChunks(pieces);
       return mergeChunks(pieces);
     })
   );
 
-  return mergeChunks(parts);
   return mergeChunks(parts);
 }
 
@@ -123,11 +111,6 @@ async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
   let total = 0;
   let finalUrl = ONNX_URL;
   try {
-    const probe = await fetchWithTimeout(
-      ONNX_URL,
-      { headers: { Range: 'bytes=0-0' } },
-      PROBE_TIMEOUT_MS
-    );
     const probe = await fetchWithTimeout(
       ONNX_URL,
       { headers: { Range: 'bytes=0-0' } },
@@ -164,10 +147,8 @@ async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
         if (contentLen) {
           const pct = Math.round((received / contentLen) * 100);
           onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
-          onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
         }
       }
-      bytes = mergeChunks(chunks);
       bytes = mergeChunks(chunks);
     }
   }
@@ -175,7 +156,6 @@ async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
   if (cache) {
     await cache.put(
       ONNX_URL,
-      new Response(bytes as BodyInit, {
       new Response(bytes as BodyInit, {
         headers: {
           'content-type': 'application/octet-stream',
