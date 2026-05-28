@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import bgBento from './assets/bg_bento.png';
 import { Modal } from './components/common/Modal';
-import { Toast } from './components/common/Toast';
+import { Toast, type ToastVariant } from './components/common/Toast';
 import { ModelLoader } from './components/common/ModelLoader';
 import { DetectionResult } from './components/detection/DetectionResult';
 import { TextInputBox } from './components/detection/TextInputBox';
@@ -23,6 +23,7 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastVariant, setToastVariant] = useState<ToastVariant>('success');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expectedLabel, setExpectedLabel] = useState<ExpectedLabel | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
@@ -76,6 +77,7 @@ function App() {
     } catch (err) {
       console.error('Inference failed:', err);
       setToastMessage('การวิเคราะห์ล้มเหลว กรุณาลองใหม่');
+      setToastVariant('error');
       setIsToastVisible(true);
     }
   };
@@ -111,12 +113,14 @@ function App() {
       addReport({ text, predictedClass, actualClass: expectedLabel, aiPercentage });
 
       setToastMessage('Thank you for your feedback!');
+      setToastVariant('success');
       setIsToastVisible(true);
       setIsModalOpen(false);
       setExpectedLabel(null);
     } catch (err) {
       console.error('Report submission failed:', err);
       setToastMessage('Failed to send report. Please try again.');
+      setToastVariant('error');
       setIsToastVisible(true);
     } finally {
       setIsSubmitting(false);
@@ -320,7 +324,7 @@ function App() {
         title="What should this text be classified as?"
       >
         <div className="p-2 space-y-6">
-          <p className="text-sm thai-leading text-on-surface-variant">
+          <p className="text-sm thai-leading text-slate-600 dark:text-slate-300">
             เลือกหมวดที่ถูกต้องเพื่อช่วยปรับปรุงโมเดล (Pick the correct label to help improve the model.)
           </p>
           <div className="grid grid-cols-2 gap-3">
@@ -330,8 +334,8 @@ function App() {
               disabled={isSubmitting}
               className={`py-5 rounded-xl font-bold text-sm uppercase font-label transition-all ${
                 expectedLabel === 'Human'
-                  ? 'bg-secondary text-white shadow-lg'
-                  : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+                  ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-400'
+                  : 'bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600'
               }`}
             >
               Human
@@ -342,8 +346,8 @@ function App() {
               disabled={isSubmitting}
               className={`py-5 rounded-xl font-bold text-sm uppercase font-label transition-all ${
                 expectedLabel === 'AI'
-                  ? 'bg-primary text-white shadow-lg'
-                  : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+                  ? 'bg-indigo-600 text-white shadow-lg ring-2 ring-indigo-400'
+                  : 'bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600'
               }`}
             >
               AI-Generated
@@ -353,14 +357,14 @@ function App() {
             <button
               onClick={handleModalClose}
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-xl bg-surface-container-high text-on-surface font-bold text-sm hover:bg-surface-container-highest transition-all uppercase font-label"
+              className="px-6 py-3 rounded-xl bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 font-bold text-sm transition-all uppercase font-label"
             >
               Cancel
             </button>
             <button
               onClick={handleReportSubmit}
               disabled={isSubmitting || !expectedLabel}
-              className="px-6 py-3 rounded-xl bg-rose-500 text-white font-bold text-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all uppercase font-label shadow-lg shadow-primary/20"
+              className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all uppercase font-label shadow-lg"
             >
               {isSubmitting ? 'Sending...' : 'Submit Report'}
             </button>
@@ -368,11 +372,12 @@ function App() {
         </div>
       </Modal>
 
-      {/* Success Toast */}
+      {/* Toast */}
       <Toast
         message={toastMessage}
         isVisible={isToastVisible}
         onClose={() => setIsToastVisible(false)}
+        variant={toastVariant}
       />
     </div>
   );
