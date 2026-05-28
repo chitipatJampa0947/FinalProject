@@ -1,23 +1,31 @@
-import { AutoTokenizer } from '@huggingface/transformers';
-import * as ort from 'onnxruntime-web';
-
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
-
-const MAX_LENGTH = 416;
-const HF_REPO = 'Chitipat0947/wangchanberta-ai-detector';
-const ONNX_URL = 'https://pub-6134e6ba6a5149f7b5872db48d5182f3.r2.dev/model_quantized.onnx';
-const MODEL_CACHE = 'ai-detector-model-v1';
-
-type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
-
-let _tokenizer: Tokenizer | null = null;
-let _session: ort.InferenceSession | null = null;
-let _loadingPromise: Promise<void> | null = null;
+// Base URL for the R2 bucket hosting both the ONNX model and tokenizer files.
+// Override at build time via `VITE_R2_MODEL_URL` in `.env`. Falls back to the
+// current R2 public URL so existing deploys keep working until the bucket move.
+const R2_BASE_URL: string =
+  (import.meta.env.VITE_R2_MODEL_URL as string | undefined) ??
+  'https://pub-6134e6ba6a5149f7b5872db48d5182f3.r2.dev';
+const ONNX_URL = `${R2_BASE_URL}/model_quantized.onnx`;
+const MODEL_CACHE = 'ai-detector-model-v2';
 
 const PARALLEL_CHUNKS = 6;
 const MOBILE_CHUNKS = 2;
 const PROBE_TIMEOUT_MS = 8_000;
 const DOWNLOAD_MSG = 'กำลังดาวน์โหลดโมเดล';
+
+type ProgressFn = (msg: string, pct?: number) => void;
+
+export type DetectResult = { label: 'AI' | 'Human'; aiProbability: number };
+
+type WorkerInbound =
+  | { type: 'ready' }
+  | { type: 'result'; id: string; label: 'AI' | 'Human'; aiProbability: number }
+  | { type: 'error'; id?: string; message: string };
+
+let _worker: Worker | null = null;
+let _workerReady: Promise<void> | null = null;
+let _initResolve: (() => void) | null = null;
+let _initReject: ((err: Error) => void) | null = null;
+const _pending = new Map<string, { resolve: (r: DetectResult) => void; reject: (err: Error) => void }>();
 
 function isMobile(): boolean {
   return typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -40,7 +48,7 @@ function mergeChunks(chunks: Uint8Array[]): Uint8Array {
 async function fetchInChunks(
   url: string,
   total: number,
-  onProgress?: (msg: string, pct?: number) => void
+  onProgress?: ProgressFn
 ): Promise<Uint8Array> {
   const numChunks = isMobile() ? MOBILE_CHUNKS : PARALLEL_CHUNKS;
   const chunkSize = Math.ceil(total / numChunks);
@@ -86,9 +94,7 @@ async function fetchInChunks(
   return mergeChunks(parts);
 }
 
-async function fetchModelBytes(
-  onProgress?: (msg: string, pct?: number) => void
-): Promise<Uint8Array> {
+async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
   const cache = 'caches' in self ? await caches.open(MODEL_CACHE) : null;
 
   if (cache) {
@@ -117,7 +123,7 @@ async function fetchModelBytes(
       if (probe.url) finalUrl = probe.url;
     }
     await probe.body?.cancel();
-  } catch { /* ignore — fall back to simple fetch */ }
+  } catch { /* fall back to simple fetch */ }
 
   let bytes: Uint8Array;
   if (total > 0) {
@@ -162,89 +168,96 @@ async function fetchModelBytes(
   return bytes;
 }
 
-export async function loadModel(
-  onProgress?: (msg: string, pct?: number) => void
-): Promise<void> {
-  if (_tokenizer && _session) return;
-  if (_loadingPromise) return _loadingPromise;
+function getWorker(): Worker {
+  if (_worker) return _worker;
+  _worker = new Worker(
+    new URL('../workers/inferenceWorker.ts', import.meta.url),
+    { type: 'module' }
+  );
+  _worker.onmessage = (event: MessageEvent<WorkerInbound>) => {
+    const msg = event.data;
+    if (msg.type === 'ready') {
+      _initResolve?.();
+      _initResolve = null;
+      _initReject = null;
+      return;
+    }
+    if (msg.type === 'result') {
+      const handler = _pending.get(msg.id);
+      if (handler) {
+        _pending.delete(msg.id);
+        handler.resolve({ label: msg.label, aiProbability: msg.aiProbability });
+      }
+      return;
+    }
+    if (msg.type === 'error') {
+      const error = new Error(msg.message);
+      if (msg.id) {
+        const handler = _pending.get(msg.id);
+        if (handler) {
+          _pending.delete(msg.id);
+          handler.reject(error);
+          return;
+        }
+      }
+      _initReject?.(error);
+      _initResolve = null;
+      _initReject = null;
+    }
+  };
+  _worker.onerror = (event) => {
+    const error = new Error(event.message || 'Inference worker crashed');
+    _initReject?.(error);
+    _initResolve = null;
+    _initReject = null;
+    for (const [id, handler] of _pending) {
+      handler.reject(error);
+      _pending.delete(id);
+    }
+  };
+  return _worker;
+}
 
-  _loadingPromise = (async () => {
-    onProgress?.('กำลังโหลด Tokenizer + โมเดล...');
+export async function loadModel(onProgress?: ProgressFn): Promise<void> {
+  if (_workerReady) return _workerReady;
 
-    const [tok, bytes] = await Promise.all([
-      AutoTokenizer.from_pretrained(HF_REPO),
-      fetchModelBytes(onProgress),
-    ]);
-    _tokenizer = tok;
-
+  _workerReady = (async () => {
+    const bytes = await fetchModelBytes(onProgress);
     onProgress?.('กำลังเตรียมโมเดล...');
-    _session = await ort.InferenceSession.create(bytes, {
-      executionProviders: ['wasm'],
+
+    const worker = getWorker();
+    const initPromise = new Promise<void>((resolve, reject) => {
+      _initResolve = resolve;
+      _initReject = reject;
     });
 
+    // Transfer the buffer to the worker (zero-copy). After this call, `bytes`
+    // is detached on the main thread — we discard the reference.
+    worker.postMessage(
+      { type: 'init', modelBytes: bytes.buffer },
+      [bytes.buffer]
+    );
+
+    await initPromise;
     onProgress?.('พร้อมวิเคราะห์');
-  })().catch(err => {
-    _loadingPromise = null;
+  })().catch((err) => {
+    _workerReady = null;
     throw err;
   });
 
-  return _loadingPromise;
+  return _workerReady;
+}
+
+export async function detectAI(text: string): Promise<DetectResult> {
+  await loadModel();
+  const worker = getWorker();
+  const id = crypto.randomUUID();
+  return new Promise<DetectResult>((resolve, reject) => {
+    _pending.set(id, { resolve, reject });
+    worker.postMessage({ type: 'detect', id, text });
+  });
 }
 
 export async function clearModelCache(): Promise<void> {
   if ('caches' in self) await caches.delete(MODEL_CACHE);
-}
-
-function toInt64Array(source: ArrayLike<number>): BigInt64Array {
-  const out = new BigInt64Array(source.length);
-  for (let i = 0; i < source.length; i++) {
-    out[i] = BigInt(Math.round(Number((source as ArrayLike<unknown>)[i])));
-  }
-  return out;
-}
-
-function softmax(logits: ArrayLike<number>): number[] {
-  const arr = Array.from(logits);
-  const max = Math.max(...arr);
-  const exps = arr.map(x => Math.exp(x - max));
-  const sum = exps.reduce((a, b) => a + b, 0);
-  return exps.map(x => x / sum);
-}
-
-export async function detectAI(
-  text: string
-): Promise<{ label: 'AI' | 'Human'; probability: number }> {
-  if (!_tokenizer || !_session) await loadModel();
-
-  const encoding = _tokenizer!(text, {
-    padding: 'max_length',
-    truncation: true,
-    max_length: MAX_LENGTH,
-  });
-
-  const inputIds = new ort.Tensor(
-    'int64',
-    toInt64Array(encoding.input_ids.data as ArrayLike<number>),
-    [1, MAX_LENGTH]
-  );
-  const attentionMask = new ort.Tensor(
-    'int64',
-    toInt64Array(encoding.attention_mask.data as ArrayLike<number>),
-    [1, MAX_LENGTH]
-  );
-
-  const feeds: Record<string, ort.Tensor> = { input_ids: inputIds, attention_mask: attentionMask };
-
-  const session = _session!;
-  if (session.inputNames.includes('token_type_ids')) {
-    feeds.token_type_ids = new ort.Tensor('int64', new BigInt64Array(MAX_LENGTH), [1, MAX_LENGTH]);
-  }
-
-  const output = await session.run(feeds);
-  const logits = output['logits'].data as Float32Array;
-  const probs = softmax(logits);
-
-  return probs[1] > probs[0]
-    ? { label: 'AI', probability: probs[1] }
-    : { label: 'Human', probability: probs[0] };
 }

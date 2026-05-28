@@ -1,6 +1,7 @@
 # Ignore Node.js dependencies
 ai-detection-app/node_modules/
 ai-detection-app/dist/
+ai-detection-app/.vite/
 
 # Ignore local environment files
 ai-detection-app/.env
@@ -9,7 +10,8 @@ ai-detection-app/.env
 .DS_Store
 Thumbs.db
 
-# Ignore Claude's local config file
+# Ignore Claude Code per-project state (memory, settings, sessions)
+.claude/
 settings.local.json
 
 #ignore .env files in the root directory
@@ -18,6 +20,9 @@ settings.local.json
 # (เพิ่มเติม) ถ้ามีไฟล์ชั่วคราวของ MS Word/Excel
 ~$*.docx
 ~$*.xlsx
+
+# Archived Pantip-era datasets and scripts (kept locally, excluded from repo)
+scripts/archive_pantip/
 
 # Large ML model files (>100MB, not suitable for GitHub without Git LFS)
 scripts/wangchanberta-ai-detector/
@@ -31,3 +36,21 @@ scheduler.pt
 scaler.pt
 rng_state.pth
 training_args.bin
+
+# Training pipeline outputs (regenerable from scripts/)
+# data/             : combine_dataset.py output (train.csv / val.csv / test.csv)
+# model_output/     : train_model.py output (final model + tokenizer + checkpoint-*)
+# logs/             : training stdout/stderr + HF Trainer logs
+# web_model_ready/  : staging dir for R2 upload (model_quantized.onnx + tokenizer files)
+data/
+model_output/
+logs/
+web_model_ready/
+
+# Large dataset artifacts (>50MB, regenerable from scrapers / generate_ai.py)
+# ai_generated_dataset.csv  : 137 MB, generate_ai.py output (Gemini + GPT-4o-mini)
+# thestandard_dataset.csv   : 58 MB,  thestandard_scraper.py output
+# cleaned_human_dataset.csv : 57 MB,  cleaned human-text intermediate
+scripts/ai_generated_dataset.csv
+scripts/thestandard_dataset.csv
+scripts/cleaned_human_dataset.csv
