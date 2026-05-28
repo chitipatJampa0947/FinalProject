@@ -334,8 +334,8 @@ function App() {
               disabled={isSubmitting}
               className={`py-5 rounded-xl font-bold text-sm uppercase font-label transition-all ${
                 expectedLabel === 'Human'
-                  ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-400'
-                  : 'bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600'
+                  ? 'bg-teal-600 text-white shadow-lg ring-2 ring-teal-400'
+                  : 'bg-teal-50 text-teal-900 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-100 dark:hover:bg-teal-900/50'
               }`}
             >
               Human
@@ -346,25 +346,25 @@ function App() {
               disabled={isSubmitting}
               className={`py-5 rounded-xl font-bold text-sm uppercase font-label transition-all ${
                 expectedLabel === 'AI'
-                  ? 'bg-indigo-600 text-white shadow-lg ring-2 ring-indigo-400'
-                  : 'bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600'
+                  ? 'bg-violet-600 text-white shadow-lg ring-2 ring-violet-400'
+                  : 'bg-violet-50 text-violet-900 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-100 dark:hover:bg-violet-900/50'
               }`}
             >
               AI-Generated
             </button>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-3 pt-2">
             <button
               onClick={handleModalClose}
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-xl bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 font-bold text-sm transition-all uppercase font-label"
+              className="w-full py-3 rounded-xl bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 font-bold text-sm transition-all uppercase font-label"
             >
               Cancel
             </button>
             <button
               onClick={handleReportSubmit}
               disabled={isSubmitting || !expectedLabel}
-              className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all uppercase font-label shadow-lg"
+              className="w-full py-3 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all uppercase font-label shadow-lg"
             >
               {isSubmitting ? 'Sending...' : 'Submit Report'}
             </button>
