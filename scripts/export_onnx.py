@@ -1,6 +1,6 @@
 """
 Standalone ONNX export + INT8 quantization.
-Loads fine-tuned model from wangchanberta-ai-detector/ — no retraining.
+Loads fine-tuned model from <project_root>/model_output/ (train_model.py output) — no retraining.
 Uses optimum (proper transformers ONNX exporter).
 """
 
@@ -8,9 +8,11 @@ import os
 import shutil
 import numpy as np
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "wangchanberta-ai-detector")
-ONNX_DIR = os.path.join(os.path.dirname(__file__), "onnx_model")
-ONNX_QUANT_DIR = os.path.join(os.path.dirname(__file__), "onnx_model_int8")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(SCRIPT_DIR)
+MODEL_DIR = os.path.join(ROOT_DIR, "model_output")
+ONNX_DIR = os.path.join(SCRIPT_DIR, "onnx_model")
+ONNX_QUANT_DIR = os.path.join(SCRIPT_DIR, "onnx_model_int8")
 
 # ─── 1. Export to ONNX via optimum ────────────────────────────────────────────
 print("Exporting fine-tuned model to ONNX via optimum...")
@@ -25,7 +27,7 @@ except Exception:
 ort_model = ORTModelForSequenceClassification.from_pretrained(MODEL_DIR, export=True)
 
 if os.path.isdir(ONNX_DIR):
-    shutil.rmtree(ONNX_DIR)
+    shutil.rmtree(ONNX_DIR, ignore_errors=True)
 ort_model.save_pretrained(ONNX_DIR)
 tokenizer.save_pretrained(ONNX_DIR)
 
@@ -41,7 +43,7 @@ quantizer = ORTQuantizer.from_pretrained(ONNX_DIR)
 qconfig = AutoQuantizationConfig.avx2(is_static=False, per_channel=False)
 
 if os.path.isdir(ONNX_QUANT_DIR):
-    shutil.rmtree(ONNX_QUANT_DIR)
+    shutil.rmtree(ONNX_QUANT_DIR, ignore_errors=True)
 quantizer.quantize(save_dir=ONNX_QUANT_DIR, quantization_config=qconfig)
 tokenizer.save_pretrained(ONNX_QUANT_DIR)
 

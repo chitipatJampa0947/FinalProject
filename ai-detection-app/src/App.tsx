@@ -3,9 +3,13 @@ import { Sun, Moon } from 'lucide-react';
 import bgBento from './assets/bg_bento.png';
 import { Modal } from './components/common/Modal';
 import { Toast } from './components/common/Toast';
+import { ModelLoader } from './components/common/ModelLoader';
 import { DetectionResult } from './components/detection/DetectionResult';
+import { TextInputBox } from './components/detection/TextInputBox';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 import { submitFeedback } from './services/feedbackService';
-import { loadModel, detectAI } from './services/inferenceService';
+import { addReport } from './services/reportStore';
+import { useAIInference } from './hooks/useAIInference';
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -21,12 +25,34 @@ function App() {
   const [activeTab, setActiveTab] = useState<'textInput' | 'ocrMode'>('textInput');
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
   const [inputText, setInputText] = useState('');
-  const [analysisResult, setAnalysisResult] = useState<{ text: string; predictedClass: string; percentage: number } | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [modelStatus, setModelStatus] = useState<string>('');
-  const [modelPct, setModelPct] = useState<number | null>(null);
-  const [isModelLoading, setIsModelLoading] = useState(false);
-  const [isModelReady, setIsModelReady] = useState(false);
+  const [submittedText, setSubmittedText] = useState('');
+  const {
+    isModelLoading,
+    isAnalyzing,
+    isModelReady,
+    modelStatus,
+    modelProgress,
+    result,
+    analyzeText,
+    preloadModel,
+    reset: resetInference,
+  } = useAIInference();
+  const analysisResult = result
+    ? {
+        text: submittedText,
+        predictedClass: result.label,
+        aiPercentage: result.aiProbability * 100,
+      }
+    : null;
+  const [route, setRoute] = useState<string>(() =>
+    typeof window !== 'undefined' ? window.location.hash : ''
+  );
+
+  useEffect(() => {
+    const onHashChange = () => setRoute(window.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // Sync theme with document class
   useEffect(() => {
@@ -40,54 +66,15 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  const preloadModel = async () => {
-    if (isModelReady || isModelLoading) return;
-    setIsModelLoading(true);
-    setModelStatus('กำลังเตรียมโมเดล...');
-    setModelPct(0);
-    try {
-      await loadModel((msg, pct) => {
-        setModelStatus(msg);
-        if (typeof pct === 'number') setModelPct(pct);
-      });
-      setIsModelReady(true);
-      setModelStatus('พร้อมวิเคราะห์');
-      setModelPct(100);
-    } catch (err) {
-      console.error('Model preload failed:', err);
-      setModelStatus('โหลดโมเดลล้มเหลว — จะลองใหม่เมื่อกด Analyze');
-    } finally {
-      setIsModelLoading(false);
-    }
-  };
-
   const handleAnalyze = async () => {
-    if (!inputText.trim() || inputText.length <= 200) return;
-    setIsAnalyzing(true);
-    if (!isModelReady) {
-      setModelStatus('');
-      setModelPct(0);
-    }
+    if (!inputText.trim() || inputText.length < 200 || inputText.length > 10000) return;
+    setSubmittedText(inputText);
     try {
-      await loadModel((msg, pct) => {
-        setModelStatus(msg);
-        if (typeof pct === 'number') setModelPct(pct);
-      });
-      setIsModelReady(true);
-      const { label, probability } = await detectAI(inputText);
-      setAnalysisResult({
-        text: inputText,
-        predictedClass: label,
-        percentage: Math.round(probability * 100),
-      });
+      await analyzeText(inputText);
     } catch (err) {
       console.error('Inference failed:', err);
       setToastMessage('การวิเคราะห์ล้มเหลว กรุณาลองใหม่');
       setIsToastVisible(true);
-    } finally {
-      setIsAnalyzing(false);
-      setModelStatus('');
-      setModelPct(null);
     }
   };
 
@@ -102,18 +89,20 @@ function App() {
   const handleAgreeAndSend = async () => {
     setIsSubmitting(true);
     try {
-      const mockFeedbackPayload = {
-        text: analysisResult?.text || inputText,
-        predictedClass: analysisResult?.predictedClass || '',
-        actualClass: analysisResult?.predictedClass === 'AI' ? 'Human' : 'AI',
-      };
-      await submitFeedback(mockFeedbackPayload);
-      setToastMessage("Thank you for your feedback!");
+      const text = analysisResult?.text || inputText;
+      const predictedClass = analysisResult?.predictedClass || '';
+      const actualClass = predictedClass === 'AI' ? 'Human' : 'AI';
+      const aiPercentage = analysisResult?.aiPercentage ?? 0;
+
+      await submitFeedback({ text, predictedClass, actualClass });
+      addReport({ text, predictedClass, actualClass, aiPercentage });
+
+      setToastMessage('Thank you for your feedback!');
       setIsToastVisible(true);
       setIsModalOpen(false);
     } catch (error) {
-      console.error("Feedback submission failed:", error);
-      setToastMessage("Failed to send feedback.");
+      console.error('Feedback submission failed:', error);
+      setToastMessage('Failed to send feedback.');
       setIsToastVisible(true);
     } finally {
       setIsSubmitting(false);
@@ -124,6 +113,12 @@ function App() {
     setShowPrivacyModal(false);
     void preloadModel();
   };
+
+  if (route === '#/admin') {
+    return <AdminDashboard onExit={() => { window.location.hash = ''; }} />;
+  }
+
+  const isBusy = isAnalyzing || isModelLoading;
 
   return (
     <div className="text-on-surface antialiased min-h-screen bg-background font-body transition-colors duration-300">
@@ -178,66 +173,40 @@ function App() {
             </div>
 
             {(isModelLoading || (!isModelReady && modelStatus)) && (
-              <div className="bg-surface-container-low rounded-2xl px-6 py-4 space-y-2 transition-colors duration-300">
-                <div className="flex justify-between items-center text-xs font-label uppercase tracking-widest">
-                  <span className="text-on-surface-variant">{modelStatus || 'กำลังเตรียมโมเดล...'}</span>
-                  {typeof modelPct === 'number' && (
-                    <span className="text-primary font-bold">{modelPct}%</span>
-                  )}
-                </div>
-                <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
-                  <div
-                    className="h-full signature-gradient transition-[width] duration-300 ease-out"
-                    style={{
-                      width:
-                        typeof modelPct === 'number' ? `${modelPct}%` : '20%',
-                    }}
-                  />
-                </div>
-              </div>
+              <ModelLoader status={modelStatus} percentage={modelProgress} />
             )}
 
             <div className="relative group">
               <div className="bg-surface-container-low rounded-2xl p-8 min-h-[450px] flex flex-col transition-all duration-300 focus-within:bg-surface-container-high">
                 {activeTab === 'textInput' ? (
-                  <>
-                    <textarea
-                      className={`w-full h-full flex-grow bg-transparent border-none focus:ring-0 text-xl thai-leading text-on-surface placeholder:text-outline-variant resize-none ${analysisResult ? 'cursor-default select-text' : ''}`}
-                      placeholder="วางข้อความภาษาไทยที่ต้องการตรวจสอบที่นี่..."
-                      value={inputText}
-                      onChange={(e) => { if (!analysisResult) setInputText(e.target.value); }}
-                      readOnly={!!analysisResult}
-                    ></textarea>
-                    <div className="flex justify-between items-center mt-8 pt-8">
-                      <div className="text-sm font-label tracking-widest uppercase">
-                        {analysisResult ? (
+                  analysisResult ? (
+                    <>
+                      <textarea
+                        className="w-full h-full flex-grow bg-transparent border-none focus:ring-0 text-xl thai-leading text-on-surface placeholder:text-outline-variant resize-none cursor-default select-text"
+                        value={inputText}
+                        readOnly
+                      ></textarea>
+                      <div className="flex justify-between items-center mt-8 pt-8">
+                        <div className="text-sm font-label tracking-widest uppercase">
                           <span className="text-primary">Analysis complete</span>
-                        ) : inputText.length > 0 && inputText.length <= 200 ? (
-                          <span className="text-error">ข้อความสั้นเกินไป ({inputText.length} / 200 ตัวอักษรขั้นต่ำ)</span>
-                        ) : (
-                          <span className="text-outline">Character Count: {inputText.length} / 5,000</span>
-                        )}
-                      </div>
-                      {analysisResult ? (
+                        </div>
                         <button
-                          onClick={() => { setAnalysisResult(null); setInputText(''); }}
+                          onClick={() => { resetInference(); setInputText(''); setSubmittedText(''); }}
                           className="border border-outline text-on-surface px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high active:scale-[0.98] transition-all font-label uppercase"
                         >
                           <span>New Analysis</span>
                           <span className="material-symbols-outlined">refresh</span>
                         </button>
-                      ) : (
-                        <button
-                          onClick={handleAnalyze}
-                          disabled={inputText.length <= 200 || isAnalyzing}
-                          className="signature-gradient text-white px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 active:scale-[0.98] shadow-xl shadow-primary/20 transition-all font-label uppercase disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
-                        >
-                          <span>{isAnalyzing ? (modelStatus || 'Analyzing...') : 'Analyze Text'}</span>
-                          <span className="material-symbols-outlined">{isAnalyzing ? 'hourglass_top' : 'analytics'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </>
+                      </div>
+                    </>
+                  ) : (
+                    <TextInputBox
+                      value={inputText}
+                      onChange={setInputText}
+                      onAnalyze={handleAnalyze}
+                      isAnalyzing={isBusy}
+                    />
+                  )
                 ) : (
                   <div className="flex-grow flex flex-col items-center justify-center text-center space-y-8 py-12">
                     <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center transition-colors duration-300">
@@ -264,8 +233,7 @@ function App() {
           {/* Results Sidebar — animates in after analysis */}
           <div className={`flex-shrink-0 sticky top-28 self-start space-y-6 transition-all duration-[1200ms] ease-in-out overflow-hidden ${analysisResult ? 'lg:w-[33%] opacity-100 max-h-[900px]' : 'w-0 opacity-0 pointer-events-none max-h-0'}`}>
             <DetectionResult
-              result={analysisResult?.predictedClass ?? ''}
-              percentage={analysisResult?.percentage ?? 0}
+              aiPercentage={analysisResult?.aiPercentage ?? 0}
               onReportIncorrect={handleReportClick}
             />
 
@@ -317,6 +285,13 @@ function App() {
               © 2026 The Transparent Guardian. Powered by WangchanBERTa. Clinical, precise, and indisputable forensic analysis.
             </p>
           </div>
+          <a
+            href="#/admin"
+            className="text-[10px] tracking-widest uppercase font-label font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">admin_panel_settings</span>
+            Admin Review Queue
+          </a>
         </div>
       </footer>
 

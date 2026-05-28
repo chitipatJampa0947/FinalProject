@@ -82,6 +82,11 @@ body {
   }
 }
 
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 @layer base {
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline font-semibold tracking-tight;
