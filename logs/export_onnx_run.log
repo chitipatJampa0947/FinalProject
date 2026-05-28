@@ -1,0 +1,18 @@
+Exporting fine-tuned model to ONNX via optimum...
+`torch_dtype` is deprecated! Use `dtype` instead!
+C:\Users\USER\AppData\Local\Programs\Python\Python3.13\Lib\site-packages\transformers\modeling_attn_mask_utils.py:196: TracerWarning: torch.tensor results are registered as constants in the trace. You can safely ignore this warning if you use this function to create tensors out of constant variables that would be the same every time you call this function. In any other case, this might cause the trace to be incorrect.
+  inverted_mask = torch.tensor(1.0, dtype=dtype) - expanded_mask
+ONNX saved → C:\Users\USER\OneDrive - Thammasat University\Final Project\scripts\onnx_model\model.onnx  (421.2 MB)
+
+Applying INT8 dynamic quantization...
+INT8 saved → C:\Users\USER\OneDrive - Thammasat University\Final Project\scripts\onnx_model_int8\model_quantized.onnx
+Size: 421.2 MB → 106.1 MB  (75% reduction)
+
+Sanity check on quantized model...
+Input names: ['input_ids', 'attention_mask']
+  'วันนี้อากาศดีมาก ไปเดินเล่นที่สวนกับครอบครัว สนุกม...' → Human (p=0.964) [expect Human]
+  'บทความนี้นำเสนอการวิเคราะห์เชิงลึกเกี่ยวกับแนวโน้ม...' → AI (p=0.999) [expect AI]
+
+Done. Files for browser inference:
+  model: C:\Users\USER\OneDrive - Thammasat University\Final Project\scripts\onnx_model_int8\model_quantized.onnx
+  tokenizer: C:\Users\USER\OneDrive - Thammasat University\Final Project\scripts\onnx_model_int8/sentencepiece.bpe.model + tokenizer.json
