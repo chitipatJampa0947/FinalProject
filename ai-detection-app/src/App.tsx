@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import bgBento from './assets/bg_bento.png';
 import { Modal } from './components/common/Modal';
@@ -27,6 +27,7 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expectedLabel, setExpectedLabel] = useState<ExpectedLabel | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [inputText, setInputText] = useState('');
   const [submittedText, setSubmittedText] = useState('');
   const {
@@ -132,8 +133,25 @@ function App() {
     void preloadModel();
   };
 
-  if (route === '#/admin') {
-    return <AdminDashboard onExit={() => { window.location.hash = ''; }} />;
+  const handleAdminClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const expected = import.meta.env.VITE_ADMIN_PASSCODE as string | undefined;
+    const input = window.prompt('Enter Admin Passcode:');
+    if (!input || !expected || input !== expected) {
+      window.alert('Access Denied');
+      return;
+    }
+    setIsAdminUnlocked(true);
+    window.location.hash = '#/admin';
+  };
+
+  const handleAdminExit = () => {
+    setIsAdminUnlocked(false);
+    window.location.hash = '';
+  };
+
+  if (route === '#/admin' && isAdminUnlocked) {
+    return <AdminDashboard onExit={handleAdminExit} />;
   }
 
   const isBusy = isAnalyzing || isModelLoading;
@@ -270,7 +288,8 @@ function App() {
           </div>
           <a
             href="#/admin"
-            className="text-[10px] tracking-widest uppercase font-label font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2"
+            onClick={handleAdminClick}
+            className="text-[10px] tracking-widest uppercase font-label font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 cursor-pointer"
           >
             <span className="material-symbols-outlined text-base">admin_panel_settings</span>
             Admin Review Queue
