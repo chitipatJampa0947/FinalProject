@@ -212,6 +212,16 @@ function App() {
               <ModelLoader status={modelStatus} percentage={modelProgress} />
             )}
 
+            {/* Inference-phase indicator: model already loaded, session.run() executing.
+                Indeterminate (no % available) so users on slow CPUs see active work. */}
+            {isAnalyzing && isModelReady && (
+              <ModelLoader
+                status="กำลังวิเคราะห์ข้อความ... / Analyzing text..."
+                percentage={null}
+                icon="neurology"
+              />
+            )}
+
             <div className="relative group">
               <div className="bg-surface-container-low rounded-2xl p-8 min-h-[450px] flex flex-col transition-all duration-300 focus-within:bg-surface-container-high">
                 {analysisResult ? (
