@@ -219,6 +219,7 @@ function App() {
                 status="กำลังวิเคราะห์ข้อความ... / Analyzing text..."
                 percentage={null}
                 icon="neurology"
+                showElapsed
               />
             )}
 
