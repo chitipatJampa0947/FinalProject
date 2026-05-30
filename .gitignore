@@ -13,6 +13,7 @@ Thumbs.db
 # Ignore Claude Code per-project state (memory, settings, sessions)
 .claude/
 settings.local.json
+CLAUDE.md
 
 #ignore .env files in the root directory
 .env
@@ -36,6 +37,7 @@ scheduler.pt
 scaler.pt
 rng_state.pth
 training_args.bin
+graphify-out/
 
 # Training pipeline outputs (regenerable from scripts/)
 # data/             : combine_dataset.py output (train.csv / val.csv / test.csv)
