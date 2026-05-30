@@ -95,6 +95,19 @@ function App() {
 
   const handleReportSubmit = async () => {
     if (!expectedLabel) return;
+
+    // Rate limit: 60s between report submissions (anti data-poisoning).
+    const REPORT_COOLDOWN_MS = 60_000;
+    const lastReportTime = Number(localStorage.getItem('last_report_time') ?? 0);
+    const elapsed = Date.now() - lastReportTime;
+    if (lastReportTime && elapsed < REPORT_COOLDOWN_MS) {
+      const remaining = Math.ceil((REPORT_COOLDOWN_MS - elapsed) / 1000);
+      setToastMessage(`Please wait ${remaining} seconds before submitting another report.`);
+      setToastVariant('error');
+      setIsToastVisible(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const text = analysisResult?.text || inputText;
@@ -110,6 +123,8 @@ function App() {
         status: 'pending',
       });
       if (error) throw error;
+
+      localStorage.setItem('last_report_time', Date.now().toString());
 
       addReport({ text, predictedClass, actualClass: expectedLabel, aiPercentage });
 

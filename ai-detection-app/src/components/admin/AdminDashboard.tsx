@@ -25,6 +25,12 @@ const statusLabel: Record<ReportStatus, string> = {
   rejected: 'Rejected',
 };
 
+// High-priority / suspicious: model very confident but user disagrees.
+// ai_probability is stored 0–100 (percent), so thresholds are 80 / 20.
+const isHighPriority = (r: ReportRow): boolean =>
+  (r.ai_probability > 80 && r.user_expected_label === 'Human') ||
+  (r.ai_probability < 20 && r.user_expected_label === 'AI-Generated');
+
 const formatDate = (iso: string): string => {
   try {
     return new Date(iso).toLocaleString('th-TH', {
@@ -72,7 +78,13 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
     return c;
   }, [reports]);
 
-  const visible = filter === 'all' ? reports : reports.filter((r) => r.status === filter);
+  const filtered = filter === 'all' ? reports : reports.filter((r) => r.status === filter);
+  // Float high-priority reports to the top; reports already arrive created_at
+  // desc, and Array.prototype.sort is stable so that ordering is preserved
+  // within each priority group.
+  const visible = [...filtered].sort(
+    (a, b) => Number(isHighPriority(b)) - Number(isHighPriority(a))
+  );
 
   const updateRowStatus = async (id: string, status: ReportStatus) => {
     const { error } = await supabase.from('user_reports').update({ status }).eq('id', id);
@@ -176,10 +188,23 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
               {visible.map((r) => {
                 const expanded = expandedId === r.id;
                 const predicted = r.ai_probability >= 50 ? 'AI' : 'Human';
+                const highPriority = isHighPriority(r);
                 return (
-                  <li key={r.id} className="bg-surface-container rounded-2xl p-6 space-y-4">
+                  <li
+                    key={r.id}
+                    className={`rounded-2xl p-6 space-y-4 ${
+                      highPriority
+                        ? 'bg-rose-50 dark:bg-rose-950/40 ring-2 ring-rose-400 dark:ring-rose-500/60'
+                        : 'bg-surface-container'
+                    }`}
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex items-center gap-3 flex-wrap">
+                        {highPriority && (
+                          <span className="px-3 py-1 rounded-full text-[10px] font-bold font-label uppercase tracking-widest bg-rose-600 text-white flex items-center gap-1">
+                            ⚠️ High Priority
+                          </span>
+                        )}
                         <span className={`px-3 py-1 rounded-full text-[10px] font-bold font-label uppercase tracking-widest ${statusBadge[r.status]}`}>
                           {statusLabel[r.status]}
                         </span>
