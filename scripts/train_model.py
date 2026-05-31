@@ -1,4 +1,6 @@
 import os
+import json
+import datetime
 import torch
 import pandas as pd
 from datasets import Dataset
@@ -175,7 +177,29 @@ def main():
         else:
             print(f"  {key}: {value}")
 
-    # 9. Save the final model
+    # 9. Persist metrics to disk so every run keeps a permanent record.
+    metrics_path = os.path.join(OUTPUT_DIR, "model_metrics.json")
+    metrics_record = {
+        "model": MODEL_NAME,
+        "model_dir": "model_output/",
+        "trained_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "hyperparameters": {
+            "batch_size": BATCH_SIZE,
+            "grad_accum_steps": GRAD_ACCUM_STEPS,
+            "effective_batch_size": BATCH_SIZE * GRAD_ACCUM_STEPS,
+            "epochs": EPOCHS,
+            "learning_rate": LEARNING_RATE,
+            "max_length": MAX_LENGTH,
+        },
+        "validation": val_results,
+        "test": test_results,
+    }
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(metrics_record, f, ensure_ascii=False, indent=2)
+    print(f"Metrics saved to {metrics_path}")
+
+    # 10. Save the final model
     print(f"\nSaving final model to {OUTPUT_DIR}")
     trainer.save_model(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
