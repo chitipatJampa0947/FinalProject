@@ -1,0 +1,22 @@
+{
+  "model": "airesearch/wangchanberta-base-att-spm-uncased (fine-tuned)",
+  "task": "binary text classification (0 = Human, 1 = AI)",
+  "dataset": "data/test.csv (held-out test split)",
+  "test_size": 2999,
+  "max_length": 400,
+  "evaluated_at": "2026-05-31T13:23:43",
+  "metrics": {
+    "accuracy": 0.9553184394798266,
+    "f1": 0.9675230247212797,
+    "precision": 0.9441816461684012,
+    "recall": 0.9920477137176938,
+    "loss": 0.19588138163089752
+  },
+  "metrics_percent": {
+    "accuracy": "95.53%",
+    "f1": "96.75%",
+    "precision": "94.42%",
+    "recall": "99.20%"
+  },
+  "note": "Tracked snapshot for presentation reference. Regenerate via: cd scripts && python evaluate_model.py (writes model_output/metrics.json, which is gitignored)."
+}
