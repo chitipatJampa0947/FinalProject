@@ -10,6 +10,10 @@ ai-detection-app/.env
 .DS_Store
 Thumbs.db
 
+# Ignore Python bytecode
+__pycache__/
+*.pyc
+
 # Ignore Claude Code per-project state (memory, settings, sessions)
 .claude/
 settings.local.json
