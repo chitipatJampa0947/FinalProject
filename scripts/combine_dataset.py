@@ -1,19 +1,24 @@
-"""Melt the twin-bucket AI dataset into a binary classification corpus.
+"""Melt the twin-bucket AI dataset into a 3-CLASS vendor classification corpus.
 
-Reads `ai_generated_dataset.csv` (one row per source article, three text
-variants per row) and produces three flat `text,label` splits under
-`<project_root>/data/`. Markdown artefacts are stripped so the classifier
-cannot overfit on formatting symbols.
+Reads `ai_generated_dataset.csv` (one row per source article: the original
+`human_text`, two AI variants `ai_polished_text` + `ai_pure_text`, and an
+`ai_model` vendor tag) and produces three flat `text,label` splits under
+`<project_root>/data/`.
 
-Label scheme: 0 = human, 1 = AI (both polished + pure).
-Splits: 80% train / 10% val / 10% test, shuffled with random_state=42.
+Label scheme (3-class):
+    0 = Human   -> human_text
+    1 = GPT     -> ai_polished_text + ai_pure_text where ai_model is GPT-4o-mini
+    2 = Gemini  -> ai_polished_text + ai_pure_text where ai_model is Gemini 2.5 Flash-Lite
+
+Pipeline: melt -> strip Markdown -> drop empty -> dedupe (within + across
+classes) -> downsample every class to equal size (perfect balance) ->
+stratified 80/10/10 split (each split keeps the balance) -> shuffle.
 """
 
 import re
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 INPUT_CSV = "ai_generated_dataset.csv"
@@ -22,6 +27,11 @@ RANDOM_STATE = 42
 TRAIN_FRAC = 0.8
 VAL_FRAC = 0.1
 # TEST_FRAC implied = 1 - TRAIN_FRAC - VAL_FRAC = 0.1
+
+LABEL_HUMAN = 0
+LABEL_GPT = 1
+LABEL_GEMINI = 2
+LABEL_NAMES = {0: "Human", 1: "GPT", 2: "Gemini"}
 
 # Markdown artefacts to strip. Applied in order; ## before # so multi-char
 # markers don't leave orphan hashes behind.
@@ -42,16 +52,69 @@ def strip_markdown(text: str) -> str:
     return text.strip()
 
 
-def subset(df: pd.DataFrame, text_col: str, label: int) -> pd.DataFrame:
-    """Extract one (text, label) view from the source dataframe."""
-    if text_col not in df.columns:
-        sys.exit(f"ERROR: required column '{text_col}' missing from {INPUT_CSV}")
-    out = df[[text_col]].rename(columns={text_col: "text"}).copy()
-    out["label"] = label
-    out = out.dropna(subset=["text"])
-    out["text"] = out["text"].astype(str).str.strip()
-    out = out[out["text"] != ""]
+def vendor_label(model: object) -> int | None:
+    """Map the ai_model string to a vendor class. None = unrecognised."""
+    m = str(model).lower()
+    if "gpt" in m:
+        return LABEL_GPT
+    if "gemini" in m:
+        return LABEL_GEMINI
+    return None
+
+
+def melt_human(df: pd.DataFrame) -> pd.DataFrame:
+    if "human_text" not in df.columns:
+        sys.exit(f"ERROR: required column 'human_text' missing from {INPUT_CSV}")
+    out = df[["human_text"]].rename(columns={"human_text": "text"}).copy()
+    out["label"] = LABEL_HUMAN
     return out
+
+
+def melt_ai(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per AI variant (polished + pure), labelled by its vendor."""
+    for col in ("ai_polished_text", "ai_pure_text", "ai_model"):
+        if col not in df.columns:
+            sys.exit(f"ERROR: required column '{col}' missing from {INPUT_CSV}")
+
+    df = df.copy()
+    df["vendor"] = df["ai_model"].map(vendor_label)
+    unknown = int(df["vendor"].isna().sum())
+    if unknown:
+        print(f"  WARNING: {unknown} rows had an unrecognised ai_model -> dropped")
+    df = df.dropna(subset=["vendor"])
+    df["vendor"] = df["vendor"].astype(int)
+
+    parts = []
+    for col in ("ai_polished_text", "ai_pure_text"):
+        p = df[[col, "vendor"]].rename(columns={col: "text", "vendor": "label"})
+        parts.append(p)
+    return pd.concat(parts, ignore_index=True)
+
+
+def clean(df: pd.DataFrame) -> pd.DataFrame:
+    """Strip Markdown, drop empties, dedupe text, force int labels."""
+    df = df.dropna(subset=["text"]).copy()
+    df["text"] = df["text"].astype(str).map(strip_markdown)
+    df = df[df["text"].str.len() > 0]
+    df = df.drop_duplicates(subset=["text"])
+    df["label"] = df["label"].astype(int)
+    return df.reset_index(drop=True)
+
+
+def split_class(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Shuffle one class and slice it 80/10/10 (stratified-by-construction)."""
+    df = df.sample(frac=1.0, random_state=RANDOM_STATE).reset_index(drop=True)
+    n = len(df)
+    train_end = int(TRAIN_FRAC * n)
+    val_end = int((TRAIN_FRAC + VAL_FRAC) * n)
+    return df.iloc[:train_end], df.iloc[train_end:val_end], df.iloc[val_end:]
+
+
+def label_dist(part: pd.DataFrame) -> str:
+    counts = part["label"].value_counts().to_dict()
+    return "  |  ".join(
+        f"{LABEL_NAMES[k]}({k}): {int(counts.get(k, 0))}" for k in (0, 1, 2)
+    )
 
 
 def main() -> None:
@@ -60,55 +123,61 @@ def main() -> None:
         sys.exit(f"ERROR: input file not found: {INPUT_CSV}")
 
     try:
-        df = pd.read_csv(in_path)
+        df = pd.read_csv(in_path, encoding="utf-8-sig")
     except Exception as e:
         sys.exit(f"ERROR: failed to read {INPUT_CSV}: {e}")
 
-    original_rows = len(df)
-    print(f"Source rows: {original_rows}")
+    print(f"Source rows (articles): {len(df)}")
 
-    human = subset(df, "human_text", 0)
-    polished = subset(df, "ai_polished_text", 1)
-    pure = subset(df, "ai_pure_text", 1)
-
+    # 1. Melt + clean each class.
+    human = clean(melt_human(df))
+    ai = melt_ai(df)
+    gpt = clean(ai[ai["label"] == LABEL_GPT])
+    gemini = clean(ai[ai["label"] == LABEL_GEMINI])
     print(
-        f"  human_text rows       : {len(human)}"
-        f"\n  ai_polished_text rows : {len(polished)}"
-        f"\n  ai_pure_text rows     : {len(pure)}"
+        f"After melt + clean (within-class dedupe):"
+        f"\n  Human (0) : {len(human)}"
+        f"\n  GPT   (1) : {len(gpt)}"
+        f"\n  Gemini(2) : {len(gemini)}"
     )
 
-    combined = pd.concat([human, polished, pure], ignore_index=True)
-    pre_clean_rows = len(combined)
-
-    # Strip Markdown artefacts from every text row.
-    combined["text"] = combined["text"].map(strip_markdown)
-
-    # Drop empties that the regex turned into pure whitespace.
-    combined = combined[combined["text"].str.len() > 0]
-
-    # Exact-duplicate dedupe on cleaned text.
-    pre_dedupe_rows = len(combined)
+    # 2. Cross-class dedupe (a text must belong to exactly one class).
+    combined = pd.concat([human, gpt, gemini], ignore_index=True)
+    pre = len(combined)
     combined = combined.drop_duplicates(subset=["text"]).reset_index(drop=True)
-    post_dedupe_rows = len(combined)
-    print(
-        f"After concat        : {pre_clean_rows}"
-        f"\nAfter markdown clean: {pre_dedupe_rows}  (dropped {pre_clean_rows - pre_dedupe_rows} empty)"
-        f"\nAfter dedupe        : {post_dedupe_rows}  (dropped {pre_dedupe_rows - post_dedupe_rows} dupes)"
-    )
+    if pre != len(combined):
+        print(f"Cross-class dedupe: dropped {pre - len(combined)} duplicate texts")
 
-    # Global shuffle for reproducibility.
-    combined = combined.sample(frac=1.0, random_state=RANDOM_STATE).reset_index(drop=True)
+    by_class = {lbl: combined[combined["label"] == lbl] for lbl in (0, 1, 2)}
+    counts = {lbl: len(part) for lbl, part in by_class.items()}
+    print("After cross-class dedupe: "
+          + "  |  ".join(f"{LABEL_NAMES[k]}({k}): {counts[k]}" for k in (0, 1, 2)))
 
-    # 80/10/10 split via pandas iloc slicing.
-    n = len(combined)
-    total_rows = len(combined)
-    train_end = int(0.8 * total_rows)
-    val_end = int(0.9 * total_rows)
-    train_df = combined.iloc[:train_end]
-    val_df = combined.iloc[train_end:val_end]
-    test_df = combined.iloc[val_end:]
+    # 3. Perfect balance: downsample every class to the smallest class size.
+    target = min(counts.values())
+    print(f"\nBalancing all classes to {target} rows each (downsample to min).")
+    balanced = {
+        lbl: part.sample(n=target, random_state=RANDOM_STATE).reset_index(drop=True)
+        for lbl, part in by_class.items()
+    }
 
-    # Write splits.
+    # 4. Stratified 80/10/10: split each class, then concat per split.
+    train_parts, val_parts, test_parts = [], [], []
+    for lbl in (0, 1, 2):
+        tr, va, te = split_class(balanced[lbl])
+        train_parts.append(tr)
+        val_parts.append(va)
+        test_parts.append(te)
+
+    def assemble(parts: list[pd.DataFrame]) -> pd.DataFrame:
+        out = pd.concat(parts, ignore_index=True)
+        return out.sample(frac=1.0, random_state=RANDOM_STATE).reset_index(drop=True)
+
+    train_df = assemble(train_parts)
+    val_df = assemble(val_parts)
+    test_df = assemble(test_parts)
+
+    # 5. Write splits.
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     train_path = OUTPUT_DIR / "train.csv"
     val_path = OUTPUT_DIR / "val.csv"
@@ -120,14 +189,9 @@ def main() -> None:
     except Exception as e:
         sys.exit(f"ERROR: failed to write split files: {e}")
 
-    def label_dist(part: pd.DataFrame) -> str:
-        counts = part["label"].value_counts().to_dict()
-        n_human = int(counts.get(0, 0))
-        n_ai = int(counts.get(1, 0))
-        return f"label=0 (human): {n_human}  |  label=1 (AI): {n_ai}"
-
-    print("\n=== Split statistics ===")
-    print(f"Total rows           : {n}")
+    total = len(train_df) + len(val_df) + len(test_df)
+    print("\n=== Split statistics (3-class) ===")
+    print(f"Total rows           : {total}")
     print(f"Train  ({len(train_df):>6})  -> {train_path}")
     print(f"  {label_dist(train_df)}")
     print(f"Val    ({len(val_df):>6})  -> {val_path}")
