@@ -1,8 +1,15 @@
 import { useCallback, useState } from 'react';
 
+export type DetectCategory = 'human' | 'gpt' | 'gemini' | 'other';
+export interface ClassProbs {
+  human: number;
+  gpt: number;
+  gemini: number;
+}
 export interface DetectionOutcome {
-  label: 'AI' | 'Human';
-  aiProbability: number;
+  category: DetectCategory;
+  probs: ClassProbs;
+  aiProbability: number; // 1 - P(human); total AI likelihood across vendors
 }
 
 export interface UseAIInferenceReturn {
