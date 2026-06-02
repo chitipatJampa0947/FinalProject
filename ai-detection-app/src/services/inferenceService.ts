@@ -5,7 +5,7 @@ const R2_BASE_URL: string =
   (import.meta.env.VITE_R2_MODEL_URL as string | undefined) ??
   'https://pub-6134e6ba6a5149f7b5872db48d5182f3.r2.dev';
 const ONNX_URL = `${R2_BASE_URL}/model_quantized.onnx`;
-const MODEL_CACHE = 'ai-detector-model-v2';
+const MODEL_CACHE = 'ai-detector-model-v3'; // v3 = 3-class vendor model (Human/GPT/Gemini)
 
 const PARALLEL_CHUNKS = 6;
 const MOBILE_CHUNKS = 2;
@@ -14,11 +14,17 @@ const DOWNLOAD_MSG = 'กำลังดาวน์โหลดโมเดล'
 
 type ProgressFn = (msg: string, pct?: number) => void;
 
-export type DetectResult = { label: 'AI' | 'Human'; aiProbability: number };
+export type DetectCategory = 'human' | 'gpt' | 'gemini' | 'other';
+export type ClassProbs = { human: number; gpt: number; gemini: number };
+export type DetectResult = {
+  category: DetectCategory;
+  probs: ClassProbs;
+  aiProbability: number; // 1 - P(human); total AI likelihood across vendors
+};
 
 type WorkerInbound =
   | { type: 'ready' }
-  | { type: 'result'; id: string; label: 'AI' | 'Human'; aiProbability: number }
+  | { type: 'result'; id: string; category: DetectCategory; probs: ClassProbs; aiProbability: number }
   | { type: 'error'; id?: string; message: string };
 
 let _worker: Worker | null = null;
@@ -186,7 +192,11 @@ function getWorker(): Worker {
       const handler = _pending.get(msg.id);
       if (handler) {
         _pending.delete(msg.id);
-        handler.resolve({ label: msg.label, aiProbability: msg.aiProbability });
+        handler.resolve({
+          category: msg.category,
+          probs: msg.probs,
+          aiProbability: msg.aiProbability,
+        });
       }
       return;
     }

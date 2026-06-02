@@ -82,14 +82,31 @@ async function handleDetect(id: string, text: string): Promise<void> {
 
   const output = await session.run(feeds);
   const logits = output['logits'].data as Float32Array;
+  // 3-class model: logits/probs are ordered [Human, GPT, Gemini] per id2label.
   const probs = softmax(logits);
-  const aiProbability = probs[1];
+  const pHuman = probs[0] ?? 0;
+  const pGpt = probs[1] ?? 0;
+  const pGemini = probs[2] ?? 0;
+
+  // Confidence thresholding with OOD ("Other AI") fallback.
+  let category: 'human' | 'gpt' | 'gemini' | 'other';
+  if (pHuman > 0.5) {
+    category = 'human';
+  } else if (pGpt >= 0.6) {
+    category = 'gpt';
+  } else if (pGemini >= 0.6) {
+    category = 'gemini';
+  } else {
+    // AI-generated, but no single vendor crosses the confidence bar.
+    category = 'other';
+  }
 
   self.postMessage({
     type: 'result',
     id,
-    label: aiProbability >= 0.5 ? 'AI' : 'Human',
-    aiProbability,
+    category,
+    probs: { human: pHuman, gpt: pGpt, gemini: pGemini },
+    aiProbability: 1 - pHuman, // total likelihood the text is AI (any vendor)
   });
 }
 

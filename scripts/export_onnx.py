@@ -65,9 +65,13 @@ print(f"Input names: {input_names}")
 
 samples = [
     ("วันนี้อากาศดีมาก ไปเดินเล่นที่สวนกับครอบครัว สนุกมาก", "expect Human"),
-    ("บทความนี้นำเสนอการวิเคราะห์เชิงลึกเกี่ยวกับแนวโน้มของเทคโนโลยีปัญญาประดิษฐ์ในอนาคต", "expect AI"),
+    ("บทความนี้นำเสนอการวิเคราะห์เชิงลึกเกี่ยวกับแนวโน้มของเทคโนโลยีปัญญาประดิษฐ์ในอนาคต", "expect AI (GPT/Gemini)"),
 ]
-label_map = {0: "Human", 1: "AI"}
+# 3-class vendor classification
+label_map = {0: "Human", 1: "GPT", 2: "Gemini"}
+
+n_classes = sess.get_outputs()[0].shape[-1]
+print(f"Output classes: {n_classes}  (labels: {label_map})")
 
 for text, note in samples:
     enc = tokenizer(text, return_tensors="np", max_length=416, truncation=True, padding="max_length")
@@ -75,7 +79,10 @@ for text, note in samples:
     logits = sess.run(None, feed)[0]
     probs = np.exp(logits) / np.exp(logits).sum(-1, keepdims=True)
     pred = int(np.argmax(logits))
-    print(f"  '{text[:50]}...' → {label_map[pred]} (p={probs[0][pred]:.3f}) [{note}]")
+    # Show the full per-class distribution so all 3 logits are visible.
+    dist = "  ".join(f"{label_map.get(i, i)}={probs[0][i]:.3f}" for i in range(probs.shape[-1]))
+    print(f"  '{text[:50]}...' → {label_map.get(pred, pred)} (p={probs[0][pred]:.3f}) [{note}]")
+    print(f"      dist: {dist}")
 
 print("\nDone. Files for browser inference:")
 print(f"  model: {quant_file}")

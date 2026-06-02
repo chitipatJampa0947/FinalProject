@@ -10,6 +10,10 @@ ai-detection-app/.env
 .DS_Store
 Thumbs.db
 
+# Ignore Python bytecode
+__pycache__/
+*.pyc
+
 # Ignore Claude Code per-project state (memory, settings, sessions)
 .claude/
 settings.local.json
@@ -46,6 +50,7 @@ graphify-out/
 # web_model_ready/  : staging dir for R2 upload (model_quantized.onnx + tokenizer files)
 data/
 model_output/
+model_output_binary_backup/
 logs/
 web_model_ready/
 

@@ -29,10 +29,15 @@ EPOCHS = 4
 LEARNING_RATE = 2e-5
 MAX_LENGTH = 400  # WangchanBERTa max is 416, 400 is safe and fast
 
+# 3-class vendor classification
+ID2LABEL = {0: "Human", 1: "GPT", 2: "Gemini"}
+LABEL2ID = {v: k for k, v in ID2LABEL.items()}
+NUM_LABELS = len(ID2LABEL)
+
 def compute_metrics(pred):
     labels = pred.label_ids
     preds = pred.predictions.argmax(-1)
-    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average='binary')
+    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average='macro')
     acc = accuracy_score(labels, preds)
     return {
         'accuracy': acc,
@@ -110,10 +115,12 @@ def main():
     print(f"\nLoading tokenizer and model: {MODEL_NAME}")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     
-    # Binary classification (0: Human, 1: AI)
+    # 3-class classification (0: Human, 1: GPT, 2: Gemini)
     model = AutoModelForSequenceClassification.from_pretrained(
-        MODEL_NAME, 
-        num_labels=2
+        MODEL_NAME,
+        num_labels=NUM_LABELS,
+        id2label=ID2LABEL,
+        label2id=LABEL2ID,
     )
     
     # 3. Prepare Data
