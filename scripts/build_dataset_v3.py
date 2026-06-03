@@ -34,7 +34,8 @@ OUTPUT_DIR = HERE.parent / "data"
 SOURCE_CSV = HERE / "generation_source.csv"
 GPT_CSV = HERE / "gpt_results.csv"
 GEMINI_CSV = HERE / "gemini_results.csv"
-OLLAMA_CSV = HERE / "ollama_results.csv"
+# Label-3 "Other AI": OpenRouter open-weight vendors (DeepSeek + Qwen).
+OTHER_CSV = HERE / "other_results.csv"
 
 RANDOM_STATE = 42
 TRAIN_FRAC = 0.8
@@ -111,10 +112,10 @@ def main() -> None:
 
     gpt = load_variant(GPT_CSV, 1)
     gemini = load_variant(GEMINI_CSV, 2)
-    ollama = load_variant(OLLAMA_CSV, 3)
+    other = load_variant(OTHER_CSV, 3)
 
     # Clean every class independently.
-    parts = {0: clean(human), 1: clean(gpt), 2: clean(gemini), 3: clean(ollama)}
+    parts = {0: clean(human), 1: clean(gpt), 2: clean(gemini), 3: clean(other)}
     print("After clean (per class):")
     for lbl, p in parts.items():
         print(f"  {LABEL_NAMES[lbl]:7}({lbl}): {len(p):6} rows, {p['gid'].nunique()} gids")

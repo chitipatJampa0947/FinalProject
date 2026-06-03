@@ -68,5 +68,6 @@ scripts/generation_source.csv
 scripts/gpt_results.csv
 scripts/gemini_results.csv
 scripts/ollama_results.csv
+scripts/other_results.csv
 scripts/openai_batch_input.jsonl
 scripts/openai_batch_state.json
