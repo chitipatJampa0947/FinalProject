@@ -45,7 +45,7 @@ RESULTS_CSV = HERE / "other_results.csv"
 
 # Auto-split across two open-weight vendors.
 DEEPSEEK_MODEL = "deepseek/deepseek-chat"
-QWEN_MODEL = "qwen/qwen-2.5-72b-instruct"
+QWEN_MODEL = "qwen/qwen-2.5-7b-instruct"  # 7B: ~5x faster than 72B on OpenRouter, still clean
 DEEPSEEK_TARGET = 5_000      # first 5k rows from DeepSeek
 TOTAL_TARGET = 10_000        # then Qwen up to 10k
 
