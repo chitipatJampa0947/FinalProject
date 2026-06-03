@@ -67,8 +67,8 @@ samples = [
     ("วันนี้อากาศดีมาก ไปเดินเล่นที่สวนกับครอบครัว สนุกมาก", "expect Human"),
     ("บทความนี้นำเสนอการวิเคราะห์เชิงลึกเกี่ยวกับแนวโน้มของเทคโนโลยีปัญญาประดิษฐ์ในอนาคต", "expect AI (GPT/Gemini)"),
 ]
-# 3-class vendor classification
-label_map = {0: "Human", 1: "GPT", 2: "Gemini"}
+# 4-class vendor classification (V3)
+label_map = {0: "Human", 1: "GPT", 2: "Gemini", 3: "Other"}
 
 n_classes = sess.get_outputs()[0].shape[-1]
 print(f"Output classes: {n_classes}  (labels: {label_map})")
