@@ -42,6 +42,7 @@ TRAIN_FRAC = 0.8
 VAL_FRAC = 0.1
 MIN_LEN = 200
 MAX_LEN = 3_000
+MIN_THAI_RATIO = 0.5   # drop English/mixed degenerate generations
 
 LABEL_NAMES = {0: "Human", 1: "GPT", 2: "Gemini", 3: "Other"}
 
@@ -86,10 +87,22 @@ def load_variant(path: Path, label: int) -> pd.DataFrame:
     return df
 
 
+def thai_ratio(text: str) -> float:
+    """Fraction of Thai-script chars. Filters degenerate English/mixed outputs
+    (small models sometimes ignore the Thai instruction) so the classifier
+    can't learn a language tell instead of writing style."""
+    t = str(text)
+    if not t:
+        return 0.0
+    thai = sum(1 for ch in t if "฀" <= ch <= "๿")
+    return thai / len(t)
+
+
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["text"]).copy()
     df["text"] = df["text"].astype(str).map(strip_markdown)
     df = df[(df["text"].str.len() >= MIN_LEN)]
+    df = df[df["text"].map(thai_ratio) >= MIN_THAI_RATIO]
     df["text"] = df["text"].str.slice(0, MAX_LEN)
     df = df.drop_duplicates(subset=["text"])
     df["label"] = df["label"].astype(int)
