@@ -26,11 +26,12 @@ OUTPUT_DIR = os.path.join(ROOT_DIR, "model_output")
 BATCH_SIZE = 8
 GRAD_ACCUM_STEPS = 2
 EPOCHS = 4
-LEARNING_RATE = 2e-5
+LEARNING_RATE = 1e-5      # V3: lowered from 2e-5 to reduce overfitting
+WARMUP_RATIO = 0.1        # V3: 10% LR warmup for stabler early training
 MAX_LENGTH = 400  # WangchanBERTa max is 416, 400 is safe and fast
 
-# 3-class vendor classification
-ID2LABEL = {0: "Human", 1: "GPT", 2: "Gemini"}
+# 4-class vendor classification (V3)
+ID2LABEL = {0: "Human", 1: "GPT", 2: "Gemini", 3: "Other"}
 LABEL2ID = {v: k for k, v in ID2LABEL.items()}
 NUM_LABELS = len(ID2LABEL)
 
@@ -138,6 +139,7 @@ def main():
         gradient_accumulation_steps=GRAD_ACCUM_STEPS,
         num_train_epochs=EPOCHS,
         weight_decay=0.01,
+        warmup_ratio=WARMUP_RATIO,      # V3: LR warmup
         eval_strategy="epoch",          # Evaluate at the end of every epoch
         save_strategy="epoch",          # Save model at the end of every epoch
         save_total_limit=2,             # Keep only the 2 best models
@@ -196,6 +198,7 @@ def main():
             "effective_batch_size": BATCH_SIZE * GRAD_ACCUM_STEPS,
             "epochs": EPOCHS,
             "learning_rate": LEARNING_RATE,
+            "warmup_ratio": WARMUP_RATIO,
             "max_length": MAX_LENGTH,
         },
         "validation": val_results,
