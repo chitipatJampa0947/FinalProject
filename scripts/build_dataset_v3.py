@@ -5,7 +5,7 @@ Joins the human source with the three vendor generations by `gid`:
     generation_source.csv  (gid, source, title, human_text, mode)  -> label 0 (Human)
     gpt_results.csv        (gid, ai_text)                          -> label 1 (GPT)
     gemini_results.csv     (gid, ai_text)                          -> label 2 (Gemini)
-    ollama_results.csv     (gid, ai_text)                          -> label 3 (Other AI)
+    other_results.csv      (gid, ai_text)                          -> label 3 (Other AI)
 
 Balance is automatic: we keep only gids that have ALL FOUR variants (after
 Markdown-stripping and length filtering), so every kept article contributes
@@ -18,7 +18,7 @@ sklearn GroupShuffleSplit, done by partitioning the unique gids 80/10/10.
 
 Output: ../data/{train,val,test}.csv  (text,label)  -> WangchanBERTa pipeline.
 
-Label scheme: 0=Human, 1=GPT, 2=Gemini, 3=Other AI (Ollama).
+Label scheme: 0=Human, 1=GPT, 2=Gemini, 3=Other AI (DeepSeek+Qwen via OpenRouter).
 """
 
 import argparse

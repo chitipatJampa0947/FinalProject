@@ -1,8 +1,8 @@
 """Generate "Other AI" (label 3) variants via OpenRouter (open-weight vendors).
 
-Replaces the local Ollama path: a 3B local model produced scaffolding/garbled
-output and took ~33h. OpenRouter gives clean, instruction-following open-weight
-models in ~95min for ~$5, concurrently.
+Why cloud, not local: a small local model produced scaffolding/garbled output
+and took ~33h. OpenRouter gives clean, instruction-following open-weight models
+in ~95min for ~$5, concurrently.
 
 Class 3 is split 50/50 across two distinct open-weight vendors for diversity,
 handled AUTOMATICALLY here:

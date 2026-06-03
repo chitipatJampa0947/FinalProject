@@ -12,7 +12,7 @@ where:
   - mode  : 'polish' or 'pure', assigned 50/50 within each source so every
             class ends up 5k polished + 5k pure.
 
-Every downstream vendor generator (GPT / Gemini / Ollama) reads THIS file, so
+Every downstream vendor generator (GPT / Gemini / DeepSeek+Qwen) reads THIS file, so
 all vendors see identical articles, modes, and prompts.
 """
 

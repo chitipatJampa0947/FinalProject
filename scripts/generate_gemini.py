@@ -2,7 +2,8 @@
 
 Reads generation_source.csv and produces one Gemini generation per article
 using the shared prompts (gen_prompts.py) — identical prompts/modes to the GPT
-and Ollama generators, so the classifier learns vendor style, not prompt drift.
+and OpenRouter (DeepSeek/Qwen) generators, so the classifier learns vendor
+style, not prompt drift.
 
 Gemini has no OpenAI-style file-batch endpoint in the standard SDK, and
 Flash-Lite is fast + cheap, so this runs concurrent real-time requests with
