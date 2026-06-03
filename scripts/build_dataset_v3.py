@@ -52,10 +52,24 @@ MARKDOWN_PATTERNS = [
     (re.compile(r"#{1,6}"), ""),
 ]
 
+# Small local models (label 3) sometimes emit meta scaffolding despite the
+# prompt ("คำนำ:", "เนื้อข่าว:", "Here is ...:"). Strip it so it can't become a
+# formatting tell. Harmless on clean GPT/Gemini text (rarely matches).
+_SCAFFOLD_LABELS = [
+    "คำตอบทั้งหมด", "คำตอบ", "คำนำ", "เนื้อข่าว", "เนื้อหาข่าว", "บทความ",
+    "หัวข้อข่าว", "หัวข้อ", "สรุปข่าว", "บทสรุป", "สรุป", "ข่าว",
+]
+SCAFFOLD_LABEL_RE = re.compile(
+    r"(?:^|\n)\s*(?:" + "|".join(_SCAFFOLD_LABELS) + r")\s*[:：]\s*", re.M)
+SCAFFOLD_PREAMBLE_RE = re.compile(
+    r"^\s*(?:sure|here(?:'s| is)|certainly|ได้เลย|นี่คือ)[^\n]*\n+", re.I)
+
 
 def strip_markdown(text: str) -> str:
     if not isinstance(text, str):
         return ""
+    text = SCAFFOLD_PREAMBLE_RE.sub("", text)
+    text = SCAFFOLD_LABEL_RE.sub(" ", text)
     for pat, repl in MARKDOWN_PATTERNS:
         text = pat.sub(repl, text)
     return re.sub(r"\s+", " ", text).strip()

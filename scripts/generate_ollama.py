@@ -114,7 +114,7 @@ def main() -> None:
 
     file_exists = RESULTS_CSV.exists()
     fout = RESULTS_CSV.open("a", encoding="utf-8-sig", newline="")
-    writer = csv.DictWriter(fout, fieldnames=["gid", "ai_text"])
+    writer = csv.DictWriter(fout, fieldnames=["gid", "ai_text", "model"])
     if not file_exists:
         writer.writeheader()
         fout.flush()
@@ -126,7 +126,7 @@ def main() -> None:
             prompt = build_prompt(r["mode"], r.get("title", ""), r.get("human_text", ""))
             text = generate_one(args.model, prompt)
             if text:
-                writer.writerow({"gid": r["gid"], "ai_text": text})
+                writer.writerow({"gid": r["gid"], "ai_text": text, "model": args.model})
                 fout.flush()
                 written += 1
             else:
