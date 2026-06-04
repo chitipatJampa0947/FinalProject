@@ -269,7 +269,7 @@ function App() {
           <div className={`flex-shrink-0 sticky top-28 self-start space-y-6 transition-all duration-[1200ms] ease-in-out overflow-hidden ${analysisResult ? 'lg:w-[33%] opacity-100 max-h-[900px]' : 'w-0 opacity-0 pointer-events-none max-h-0'}`}>
             <DetectionResult
               category={analysisResult?.category ?? 'human'}
-              probs={analysisResult?.probs ?? { human: 0, gpt: 0, gemini: 0 }}
+              probs={analysisResult?.probs ?? { human: 0, gpt: 0, gemini: 0, other: 0 }}
               aiPercentage={analysisResult?.aiPercentage ?? 0}
               onReportIncorrect={handleReportClick}
             />

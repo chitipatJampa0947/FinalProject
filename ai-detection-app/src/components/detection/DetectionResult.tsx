@@ -4,7 +4,7 @@ type Category = 'human' | 'gpt' | 'gemini' | 'other';
 
 interface DetectionResultProps {
   category: Category;
-  probs: { human: number; gpt: number; gemini: number };
+  probs: { human: number; gpt: number; gemini: number; other: number };
   aiPercentage: number; // 0-100, total AI likelihood = (1 - P_human) * 100
   onReportIncorrect: () => void;
 }
@@ -68,7 +68,6 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 export const DetectionResult: React.FC<DetectionResultProps> = ({
   category,
   probs,
-  aiPercentage,
   onReportIncorrect,
 }) => {
   const meta = CATEGORY_META[category];
@@ -76,9 +75,10 @@ export const DetectionResult: React.FC<DetectionResultProps> = ({
   const human = clamp01(probs.human);
   const gpt = clamp01(probs.gpt);
   const gemini = clamp01(probs.gemini);
+  const other = clamp01(probs.other);
 
-  // Gauge shows the confidence behind the chosen verdict. For "Other AI" there
-  // is no single dominant vendor, so we surface the overall AI likelihood.
+  // Gauge shows the confidence behind the chosen verdict (the winning class's
+  // own probability). 'other' is a real trained class now, so it uses its prob.
   const confidence =
     category === 'human'
       ? human
@@ -86,7 +86,7 @@ export const DetectionResult: React.FC<DetectionResultProps> = ({
       ? gpt
       : category === 'gemini'
       ? gemini
-      : clamp01(aiPercentage / 100);
+      : other;
   const pct = Math.round(confidence * 100);
 
   const radius = 72;
@@ -100,6 +100,7 @@ export const DetectionResult: React.FC<DetectionResultProps> = ({
     { key: 'human', label: 'Human / มนุษย์', value: human, bar: 'bg-emerald-500' },
     { key: 'gpt', label: 'ChatGPT', value: gpt, bar: 'bg-teal-500' },
     { key: 'gemini', label: 'Gemini', value: gemini, bar: 'bg-violet-500' },
+    { key: 'other', label: 'Other AI / AI อื่นๆ', value: other, bar: 'bg-amber-500' },
   ];
   // Highlight the single highest-probability class.
   const topKey = breakdown.reduce((a, b) => (b.value > a.value ? b : a)).key;
