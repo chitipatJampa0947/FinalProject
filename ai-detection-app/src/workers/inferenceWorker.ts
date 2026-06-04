@@ -82,30 +82,27 @@ async function handleDetect(id: string, text: string): Promise<void> {
 
   const output = await session.run(feeds);
   const logits = output['logits'].data as Float32Array;
-  // 3-class model: logits/probs are ordered [Human, GPT, Gemini] per id2label.
+  // 4-class model: logits/probs ordered [Human, GPT, Gemini, Other] per id2label.
   const probs = softmax(logits);
   const pHuman = probs[0] ?? 0;
   const pGpt = probs[1] ?? 0;
   const pGemini = probs[2] ?? 0;
+  const pOther = probs[3] ?? 0;
 
-  // Confidence thresholding with OOD ("Other AI") fallback.
-  let category: 'human' | 'gpt' | 'gemini' | 'other';
-  if (pHuman > 0.5) {
-    category = 'human';
-  } else if (pGpt >= 0.6) {
-    category = 'gpt';
-  } else if (pGemini >= 0.6) {
-    category = 'gemini';
-  } else {
-    // AI-generated, but no single vendor crosses the confidence bar.
-    category = 'other';
+  // 'Other' is a real trained class now (DeepSeek/Qwen), so pick the argmax
+  // directly — no confidence thresholding / OOD fallback needed.
+  const cats = ['human', 'gpt', 'gemini', 'other'] as const;
+  let top = 0;
+  for (let i = 1; i < 4; i++) {
+    if ((probs[i] ?? 0) > (probs[top] ?? 0)) top = i;
   }
+  const category = cats[top];
 
   self.postMessage({
     type: 'result',
     id,
     category,
-    probs: { human: pHuman, gpt: pGpt, gemini: pGemini },
+    probs: { human: pHuman, gpt: pGpt, gemini: pGemini, other: pOther },
     aiProbability: 1 - pHuman, // total likelihood the text is AI (any vendor)
   });
 }

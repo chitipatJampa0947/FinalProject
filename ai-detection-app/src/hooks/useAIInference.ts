@@ -5,6 +5,7 @@ export interface ClassProbs {
   human: number;
   gpt: number;
   gemini: number;
+  other: number;
 }
 export interface DetectionOutcome {
   category: DetectCategory;
