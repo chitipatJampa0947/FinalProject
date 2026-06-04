@@ -5,7 +5,7 @@ const R2_BASE_URL: string =
   (import.meta.env.VITE_R2_MODEL_URL as string | undefined) ??
   'https://pub-6134e6ba6a5149f7b5872db48d5182f3.r2.dev';
 const ONNX_URL = `${R2_BASE_URL}/model_quantized.onnx`;
-const MODEL_CACHE = 'ai-detector-model-v3'; // v3 = 3-class vendor model (Human/GPT/Gemini)
+const MODEL_CACHE = 'ai-detector-model-v4'; // v4 = 4-class vendor model (Human/GPT/Gemini/Other)
 
 const PARALLEL_CHUNKS = 6;
 const MOBILE_CHUNKS = 2;
@@ -15,7 +15,7 @@ const DOWNLOAD_MSG = 'กำลังดาวน์โหลดโมเดล'
 type ProgressFn = (msg: string, pct?: number) => void;
 
 export type DetectCategory = 'human' | 'gpt' | 'gemini' | 'other';
-export type ClassProbs = { human: number; gpt: number; gemini: number };
+export type ClassProbs = { human: number; gpt: number; gemini: number; other: number };
 export type DetectResult = {
   category: DetectCategory;
   probs: ClassProbs;

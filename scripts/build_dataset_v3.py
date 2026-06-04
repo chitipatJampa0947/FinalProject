@@ -5,7 +5,7 @@ Joins the human source with the three vendor generations by `gid`:
     generation_source.csv  (gid, source, title, human_text, mode)  -> label 0 (Human)
     gpt_results.csv        (gid, ai_text)                          -> label 1 (GPT)
     gemini_results.csv     (gid, ai_text)                          -> label 2 (Gemini)
-    ollama_results.csv     (gid, ai_text)                          -> label 3 (Other AI)
+    other_results.csv      (gid, ai_text)                          -> label 3 (Other AI)
 
 Balance is automatic: we keep only gids that have ALL FOUR variants (after
 Markdown-stripping and length filtering), so every kept article contributes
@@ -18,7 +18,7 @@ sklearn GroupShuffleSplit, done by partitioning the unique gids 80/10/10.
 
 Output: ../data/{train,val,test}.csv  (text,label)  -> WangchanBERTa pipeline.
 
-Label scheme: 0=Human, 1=GPT, 2=Gemini, 3=Other AI (Ollama).
+Label scheme: 0=Human, 1=GPT, 2=Gemini, 3=Other AI (DeepSeek+Qwen via OpenRouter).
 """
 
 import argparse
@@ -34,13 +34,15 @@ OUTPUT_DIR = HERE.parent / "data"
 SOURCE_CSV = HERE / "generation_source.csv"
 GPT_CSV = HERE / "gpt_results.csv"
 GEMINI_CSV = HERE / "gemini_results.csv"
-OLLAMA_CSV = HERE / "ollama_results.csv"
+# Label-3 "Other AI": OpenRouter open-weight vendors (DeepSeek + Qwen).
+OTHER_CSV = HERE / "other_results.csv"
 
 RANDOM_STATE = 42
 TRAIN_FRAC = 0.8
 VAL_FRAC = 0.1
 MIN_LEN = 200
 MAX_LEN = 3_000
+MIN_THAI_RATIO = 0.5   # drop English/mixed degenerate generations
 
 LABEL_NAMES = {0: "Human", 1: "GPT", 2: "Gemini", 3: "Other"}
 
@@ -52,10 +54,24 @@ MARKDOWN_PATTERNS = [
     (re.compile(r"#{1,6}"), ""),
 ]
 
+# Small local models (label 3) sometimes emit meta scaffolding despite the
+# prompt ("คำนำ:", "เนื้อข่าว:", "Here is ...:"). Strip it so it can't become a
+# formatting tell. Harmless on clean GPT/Gemini text (rarely matches).
+_SCAFFOLD_LABELS = [
+    "คำตอบทั้งหมด", "คำตอบ", "คำนำ", "เนื้อข่าว", "เนื้อหาข่าว", "บทความ",
+    "หัวข้อข่าว", "หัวข้อ", "สรุปข่าว", "บทสรุป", "สรุป", "ข่าว",
+]
+SCAFFOLD_LABEL_RE = re.compile(
+    r"(?:^|\n)\s*(?:" + "|".join(_SCAFFOLD_LABELS) + r")\s*[:：]\s*", re.M)
+SCAFFOLD_PREAMBLE_RE = re.compile(
+    r"^\s*(?:sure|here(?:'s| is)|certainly|ได้เลย|นี่คือ)[^\n]*\n+", re.I)
+
 
 def strip_markdown(text: str) -> str:
     if not isinstance(text, str):
         return ""
+    text = SCAFFOLD_PREAMBLE_RE.sub("", text)
+    text = SCAFFOLD_LABEL_RE.sub(" ", text)
     for pat, repl in MARKDOWN_PATTERNS:
         text = pat.sub(repl, text)
     return re.sub(r"\s+", " ", text).strip()
@@ -71,10 +87,22 @@ def load_variant(path: Path, label: int) -> pd.DataFrame:
     return df
 
 
+def thai_ratio(text: str) -> float:
+    """Fraction of Thai-script chars. Filters degenerate English/mixed outputs
+    (small models sometimes ignore the Thai instruction) so the classifier
+    can't learn a language tell instead of writing style."""
+    t = str(text)
+    if not t:
+        return 0.0
+    thai = sum(1 for ch in t if "฀" <= ch <= "๿")
+    return thai / len(t)
+
+
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["text"]).copy()
     df["text"] = df["text"].astype(str).map(strip_markdown)
     df = df[(df["text"].str.len() >= MIN_LEN)]
+    df = df[df["text"].map(thai_ratio) >= MIN_THAI_RATIO]
     df["text"] = df["text"].str.slice(0, MAX_LEN)
     df = df.drop_duplicates(subset=["text"])
     df["label"] = df["label"].astype(int)
@@ -97,10 +125,10 @@ def main() -> None:
 
     gpt = load_variant(GPT_CSV, 1)
     gemini = load_variant(GEMINI_CSV, 2)
-    ollama = load_variant(OLLAMA_CSV, 3)
+    other = load_variant(OTHER_CSV, 3)
 
     # Clean every class independently.
-    parts = {0: clean(human), 1: clean(gpt), 2: clean(gemini), 3: clean(ollama)}
+    parts = {0: clean(human), 1: clean(gpt), 2: clean(gemini), 3: clean(other)}
     print("After clean (per class):")
     for lbl, p in parts.items():
         print(f"  {LABEL_NAMES[lbl]:7}({lbl}): {len(p):6} rows, {p['gid'].nunique()} gids")

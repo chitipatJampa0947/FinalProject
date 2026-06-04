@@ -1,27 +1,23 @@
-"""Generate Gemini (label 2) variants via the Google GenAI API.
+"""Generate GPT (label 1) variants via the OpenAI real-time chat API.
 
-Reads generation_source.csv and produces one Gemini generation per article
-using the shared prompts (gen_prompts.py) — identical prompts/modes to the GPT
-and OpenRouter (DeepSeek/Qwen) generators, so the classifier learns vendor
-style, not prompt drift.
+Fallback to the Batch API path (generate_openai_batch.py) when the org's
+enqueued-token limit is too low for a 10k batch (error: token_limit_exceeded).
+Real-time has no enqueued cap; concurrency + backoff handles throughput.
 
-Gemini has no OpenAI-style file-batch endpoint in the standard SDK, and
-Flash-Lite is fast + cheap, so this runs concurrent real-time requests with
-exponential backoff. Output is written incrementally and the run is RESUMABLE:
-re-running skips gids already present in gemini_results.csv.
+Reads generation_source.csv, uses the shared prompts (gen_prompts.py), and
+writes gpt_results.csv (gid, ai_text) — the exact file build_dataset_v3.py
+expects. RESUMABLE: re-running skips gids already present.
 
-Requires GEMINI_API_KEY in the project-root .env.
+Requires OPENAI_API_KEY in the project-root .env.
 
 Usage:
-    python generate_gemini.py                # full run
-    python generate_gemini.py --limit 20     # pilot
-    python generate_gemini.py --workers 8    # concurrency (default 8)
+    python generate_openai_realtime.py --limit 20      # pilot
+    python generate_openai_realtime.py                 # full run
+    python generate_openai_realtime.py --workers 8     # concurrency (default 8)
 """
 
 import argparse
 import csv
-import os
-import random
 import sys
 import threading
 import time
@@ -30,7 +26,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from tqdm import tqdm
-from google import genai
+from openai import OpenAI
 
 from gen_prompts import build_prompt, GENERATION_TEMPERATURE
 
@@ -38,18 +34,15 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 HERE = Path(__file__).resolve().parent
 SOURCE_CSV = HERE / "generation_source.csv"
-RESULTS_CSV = HERE / "gemini_results.csv"
+RESULTS_CSV = HERE / "gpt_results.csv"
 
-MODEL = "gemini-2.5-flash-lite"
+MODEL = "gpt-4o-mini"
+MAX_OUTPUT_TOKENS = 900
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 2.0
 MAX_BACKOFF = 60.0
 
-API_KEY = os.environ.get("GEMINI_API_KEY")
-if not API_KEY:
-    sys.exit("ERROR: GEMINI_API_KEY not set in .env")
-_client = genai.Client(api_key=API_KEY)
-
+client = OpenAI()
 _write_lock = threading.Lock()
 
 
@@ -64,25 +57,29 @@ def load_done() -> set[str]:
 
 
 def generate_one(prompt: str) -> str | None:
-    """Call Gemini with exponential backoff. Empty result = failure."""
     backoff = INITIAL_BACKOFF
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = _client.models.generate_content(model=MODEL, contents=prompt)
-            text = (resp.text or "").strip()
+            resp = client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=GENERATION_TEMPERATURE,
+                max_tokens=MAX_OUTPUT_TOKENS,
+            )
+            text = (resp.choices[0].message.content or "").strip()
             if text:
                 return text
         except Exception as e:
             if attempt == MAX_RETRIES:
                 tqdm.write(f"  [FAIL] {type(e).__name__}: {str(e)[:120]}")
                 return None
-        time.sleep(min(backoff, MAX_BACKOFF) + random.uniform(0, 1.0))
+        time.sleep(min(backoff, MAX_BACKOFF))
         backoff *= 2
     return None
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Gemini generator (label 2).")
+    ap = argparse.ArgumentParser(description="OpenAI real-time GPT generator (label 1).")
     ap.add_argument("--limit", type=int, default=None, help="Pilot: max N new rows.")
     ap.add_argument("--workers", type=int, default=8, help="Concurrent requests.")
     args = ap.parse_args()
@@ -109,7 +106,7 @@ def main() -> None:
         fout.flush()
 
     written, failed = 0, 0
-    pbar = tqdm(total=len(pending), desc="Gemini", unit="row")
+    pbar = tqdm(total=len(pending), desc="GPT", unit="row")
 
     def task(r: dict) -> tuple[str, str | None]:
         prompt = build_prompt(r["mode"], r.get("title", ""), r.get("human_text", ""))

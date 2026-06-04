@@ -12,7 +12,7 @@ where:
   - mode  : 'polish' or 'pure', assigned 50/50 within each source so every
             class ends up 5k polished + 5k pure.
 
-Every downstream vendor generator (GPT / Gemini / Ollama) reads THIS file, so
+Every downstream vendor generator (GPT / Gemini / DeepSeek+Qwen) reads THIS file, so
 all vendors see identical articles, modes, and prompts.
 """
 
@@ -30,15 +30,6 @@ OUT_CSV = HERE / "generation_source.csv"
 RANDOM_STATE = 42
 PER_SOURCE = 5_000
 MIN_LEN = 200  # human_text floor (chars)
-
-
-def assign_modes(df: pd.DataFrame) -> pd.DataFrame:
-    """Shuffle, then split 50/50 into polish/pure. Exact balance."""
-    df = df.sample(frac=1.0, random_state=RANDOM_STATE).reset_index(drop=True)
-    half = len(df) // 2
-    df["mode"] = "pure"
-    df.loc[: half - 1, "mode"] = "polish"
-    return df
 
 
 def load_sanook() -> pd.DataFrame:
@@ -89,14 +80,14 @@ def main() -> None:
     print(f"  The Standard : {len(ts)}")
 
     combined = pd.concat([sanook, ts], ignore_index=True)
-    # Assign modes within each source for per-source 50/50 balance.
-    combined = (
-        combined.groupby("source", group_keys=False)
-        .apply(assign_modes)
-        .reset_index(drop=True)
-    )
-    # Global shuffle for good measure.
+    # Shuffle, then within each source assign first half -> polish, rest -> pure.
+    # Vectorized (preserves all columns; avoids groupby.apply dropping 'source').
     combined = combined.sample(frac=1.0, random_state=RANDOM_STATE).reset_index(drop=True)
+    combined["_rank"] = combined.groupby("source").cumcount()
+    combined["_half"] = combined.groupby("source")["gid"].transform("size") // 2
+    combined["mode"] = "pure"
+    combined.loc[combined["_rank"] < combined["_half"], "mode"] = "polish"
+    combined = combined.drop(columns=["_rank", "_half"])
 
     combined.to_csv(OUT_CSV, index=False, encoding="utf-8-sig")
 

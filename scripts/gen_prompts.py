@@ -1,4 +1,4 @@
-"""Shared generation prompts for the 3-vendor AI corpus (GPT / Gemini / Ollama).
+"""Shared generation prompts for the 3-vendor AI corpus (GPT / Gemini / DeepSeek+Qwen).
 
 Used IDENTICALLY by every vendor generator so the classifier learns each
 vendor's writing *style*, not differences in how we prompted them.
