@@ -69,6 +69,10 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
   }, []);
 
   useEffect(() => {
+    // Initial data load on mount. fetchReports flips isLoading synchronously
+    // so the spinner renders before the network round-trip — intentional for
+    // a fetch-on-mount admin view; the cascading-render concern doesn't apply.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchReports();
   }, [fetchReports]);
 
