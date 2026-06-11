@@ -4,7 +4,11 @@ import * as ort from 'onnxruntime-web';
 
 declare const self: DedicatedWorkerGlobalScope;
 
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
+// Version-pinned to the exact installed package — the JS API in our bundle and
+// the CDN-fetched .wasm binary must match, and an unpinned URL would silently
+// track jsDelivr's latest release.
+ort.env.wasm.wasmPaths =
+  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0-dev.20260416-b7804b056c/dist/';
 
 const MAX_LENGTH = 416;
 const HF_REPO = 'Chitipat0947/wangchanberta-ai-detector';
