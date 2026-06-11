@@ -58,7 +58,7 @@ export const TextInputBox: React.FC<TextInputBoxProps> = ({
           )}
           {isOverOptimal && (
             <span className="text-amber-500 font-medium">
-              💡 ความยาวเกิน 3,000 ตัวอักษร: ระบบจะแบ่งประมวลผลเป็นส่วนๆ ซึ่งอาจใช้เวลาวิเคราะห์นานขึ้นเล็กน้อย — Long text detected: The system will process in chunks (may take slightly longer).
+              💡 ความยาวเกิน 3,000 ตัวอักษร: ระบบจะวิเคราะห์จากช่วงต้นของข้อความเป็นหลัก (ประมาณ 416 โทเคนแรก) — Long text detected: Analysis focuses on the beginning of the text (about the first 416 tokens).
             </span>
           )}
           {isOverLimit && (

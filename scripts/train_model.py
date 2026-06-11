@@ -12,7 +12,6 @@ from transformers import (
     DataCollatorWithPadding,
     EarlyStoppingCallback
 )
-import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 # Configuration
@@ -116,7 +115,7 @@ def main():
     print(f"\nLoading tokenizer and model: {MODEL_NAME}")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     
-    # 3-class classification (0: Human, 1: GPT, 2: Gemini)
+    # 4-class vendor classification (0: Human, 1: GPT, 2: Gemini, 3: Other)
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_NAME,
         num_labels=NUM_LABELS,

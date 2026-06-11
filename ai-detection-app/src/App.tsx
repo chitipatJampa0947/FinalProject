@@ -7,7 +7,6 @@ import { ModelLoader } from './components/common/ModelLoader';
 import { DetectionResult } from './components/detection/DetectionResult';
 import { TextInputBox } from './components/detection/TextInputBox';
 import { AdminDashboard } from './components/admin/AdminDashboard';
-import { addReport } from './services/reportStore';
 import { useAIInference } from './hooks/useAIInference';
 import { supabase } from './lib/supabaseClient';
 
@@ -16,7 +15,10 @@ type ExpectedLabel = 'Human' | 'AI';
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') as 'light' | 'dark' || 'light';
+      const stored = localStorage.getItem('theme');
+      // Whitelist — a corrupted/legacy value would otherwise become a bogus
+      // class on <html>.
+      if (stored === 'light' || stored === 'dark') return stored;
     }
     return 'light';
   });
@@ -37,21 +39,15 @@ function App() {
     modelStatus,
     modelProgress,
     result,
+    error: inferenceError,
     analyzeText,
     preloadModel,
     reset: resetInference,
   } = useAIInference();
-  const categoryLabel: Record<'human' | 'gpt' | 'gemini' | 'other', string> = {
-    human: 'Human',
-    gpt: 'ChatGPT',
-    gemini: 'Gemini',
-    other: 'Other AI',
-  };
   const analysisResult = result
     ? {
         text: submittedText,
         category: result.category,
-        predictedClass: categoryLabel[result.category],
         probs: result.probs,
         aiPercentage: result.aiProbability * 100,
       }
@@ -65,6 +61,17 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // Surface inference failures. analyzeText never rejects — it stores the
+  // failure in the hook's `error` state, so a toast here is the only way the
+  // user ever learns the analysis failed.
+  useEffect(() => {
+    if (inferenceError) {
+      setToastMessage('การวิเคราะห์ล้มเหลว กรุณาลองใหม่ / Analysis failed, please try again.');
+      setToastVariant('error');
+      setIsToastVisible(true);
+    }
+  }, [inferenceError]);
 
   // Sync theme with document class
   useEffect(() => {
@@ -81,14 +88,9 @@ function App() {
   const handleAnalyze = async () => {
     if (!inputText.trim() || inputText.length < 200 || inputText.length > 10000) return;
     setSubmittedText(inputText);
-    try {
-      await analyzeText(inputText);
-    } catch (err) {
-      console.error('Inference failed:', err);
-      setToastMessage('การวิเคราะห์ล้มเหลว กรุณาลองใหม่');
-      setToastVariant('error');
-      setIsToastVisible(true);
-    }
+    // analyzeText handles its own errors (exposed via the hook's `error`
+    // state, surfaced by the toast effect above) — it never rejects.
+    await analyzeText(inputText);
   };
 
   const handleReportClick = () => {
@@ -119,7 +121,6 @@ function App() {
     setIsSubmitting(true);
     try {
       const text = analysisResult?.text || inputText;
-      const predictedClass = analysisResult?.predictedClass || '';
       const aiPercentage = analysisResult?.aiPercentage ?? 0;
       const userExpectedLabel: 'Human' | 'AI-Generated' =
         expectedLabel === 'AI' ? 'AI-Generated' : 'Human';
@@ -133,8 +134,6 @@ function App() {
       if (error) throw error;
 
       localStorage.setItem('last_report_time', Date.now().toString());
-
-      addReport({ text, predictedClass, actualClass: expectedLabel, aiPercentage });
 
       setToastMessage('Thank you for your feedback!');
       setToastVariant('success');

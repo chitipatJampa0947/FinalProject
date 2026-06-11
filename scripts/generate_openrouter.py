@@ -7,8 +7,8 @@ in ~95min for ~$5, concurrently.
 Class 3 is split 50/50 across two distinct open-weight vendors for diversity,
 handled AUTOMATICALLY here:
 
-    first  DEEPSEEK_TARGET rows -> deepseek/deepseek-chat   (DeepSeek-V3)
-    remaining rows up to TOTAL  -> qwen/qwen-2.5-72b-instruct (Qwen 2.5)
+    first  DEEPSEEK_TARGET rows -> deepseek/deepseek-chat    (DeepSeek-V3)
+    remaining rows up to TOTAL  -> qwen/qwen-2.5-7b-instruct (Qwen 2.5)
 
 Run ONE command, leave it:
     python generate_openrouter.py

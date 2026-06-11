@@ -10,6 +10,9 @@ const MODEL_CACHE = 'ai-detector-model-v4'; // v4 = 4-class vendor model (Human/
 const PARALLEL_CHUNKS = 6;
 const MOBILE_CHUNKS = 2;
 const PROBE_TIMEOUT_MS = 8_000;
+// Watchdog for a single detect round-trip. Generous: slow phones legitimately
+// take 10s+ per inference (see CLAUDE.md §6); this only catches a dead worker.
+const DETECT_TIMEOUT_MS = 120_000;
 const DOWNLOAD_MSG = 'กำลังดาวน์โหลดโมเดล';
 
 type ProgressFn = (msg: string, pct?: number) => void;
@@ -73,8 +76,12 @@ async function fetchInChunks(
         { headers: { Range: `bytes=${start}-${end}` } },
         120_000
       );
-      if (!res.ok && res.status !== 206) {
-        throw new Error(`Range fetch failed: ${res.status}`);
+      // Strictly require 206. A 200 means the server ignored the Range header
+      // and returned the FULL body — merging that would silently corrupt the
+      // model and poison the Cache API. Throw so the caller falls back to a
+      // single-stream fetch instead.
+      if (res.status !== 206) {
+        throw new Error(`Range fetch failed: expected 206, got ${res.status}`);
       }
       const reader = res.body?.getReader();
       if (!reader) {
@@ -97,7 +104,36 @@ async function fetchInChunks(
     })
   );
 
-  return mergeChunks(parts);
+  const merged = mergeChunks(parts);
+  // Integrity gate: a wrong-length merge must never reach the Cache API.
+  if (merged.length !== total) {
+    throw new Error(`Chunked download size mismatch: got ${merged.length}, expected ${total}`);
+  }
+  return merged;
+}
+
+async function fetchSingleStream(onProgress?: ProgressFn): Promise<Uint8Array> {
+  const res = await fetch(ONNX_URL);
+  if (!res.ok) throw new Error(`Model fetch failed: ${res.status}`);
+  const contentLen = Number(res.headers.get('content-length')) || 0;
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const buf = await res.arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (contentLen) {
+      const pct = Math.round((received / contentLen) * 100);
+      onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
+    }
+  }
+  return mergeChunks(chunks);
 }
 
 async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
@@ -112,7 +148,8 @@ async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
     }
   }
 
-  onProgress?.('กำลังดาวน์โหลดโมเดล (~102 MB)...', 0);
+  // 106,066,136 bytes — quote decimal MB to match CLAUDE.md and the thesis.
+  onProgress?.('กำลังดาวน์โหลดโมเดล (~106 MB)...', 0);
 
   let total = 0;
   let finalUrl = ONNX_URL;
@@ -133,42 +170,36 @@ async function fetchModelBytes(onProgress?: ProgressFn): Promise<Uint8Array> {
 
   let bytes: Uint8Array;
   if (total > 0) {
-    bytes = await fetchInChunks(finalUrl, total, onProgress);
-  } else {
-    const res = await fetch(ONNX_URL);
-    if (!res.ok) throw new Error(`Model fetch failed: ${res.status}`);
-    const contentLen = Number(res.headers.get('content-length')) || 0;
-    const reader = res.body?.getReader();
-    if (!reader) {
-      const buf = await res.arrayBuffer();
-      bytes = new Uint8Array(buf);
-    } else {
-      const chunks: Uint8Array[] = [];
-      let received = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.length;
-        if (contentLen) {
-          const pct = Math.round((received / contentLen) * 100);
-          onProgress?.(`${DOWNLOAD_MSG} ${pct}%`, pct);
-        }
-      }
-      bytes = mergeChunks(chunks);
+    try {
+      bytes = await fetchInChunks(finalUrl, total, onProgress);
+    } catch (err) {
+      // Any chunk irregularity (non-206, timeout, size mismatch) lands here —
+      // retry once as a plain stream rather than failing the whole load.
+      console.warn('Chunked download failed, falling back to single stream:', err);
+      onProgress?.(`${DOWNLOAD_MSG} 0%`, 0);
+      bytes = await fetchSingleStream(onProgress);
     }
+  } else {
+    bytes = await fetchSingleStream(onProgress);
   }
 
   if (cache) {
-    await cache.put(
-      ONNX_URL,
-      new Response(bytes as BodyInit, {
-        headers: {
-          'content-type': 'application/octet-stream',
-          'content-length': String(bytes.length),
-        },
-      })
-    );
+    try {
+      await cache.put(
+        ONNX_URL,
+        new Response(bytes as BodyInit, {
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-length': String(bytes.length),
+          },
+        })
+      );
+    } catch (err) {
+      // Caching is an optimization — on quota-constrained devices cache.put
+      // can throw even though the bytes are already in memory. Never let
+      // that fail the load; the only cost is a re-download next visit.
+      console.warn('Model cache write failed (storage quota?) — continuing without cache:', err);
+    }
   }
 
   return bytes;
@@ -224,6 +255,14 @@ function getWorker(): Worker {
       handler.reject(error);
       _pending.delete(id);
     }
+    // Recovery path: drop the dead worker and the resolved ready-promise so
+    // the next loadModel()/detectAI() call re-initializes from scratch
+    // (model bytes come back from the Cache API, so recovery is cheap).
+    // Without this, every later detect would postMessage into a dead worker
+    // and hang forever.
+    _worker?.terminate();
+    _worker = null;
+    _workerReady = null;
   };
   return _worker;
 }
@@ -263,7 +302,17 @@ export async function detectAI(text: string): Promise<DetectResult> {
   const worker = getWorker();
   const id = crypto.randomUUID();
   return new Promise<DetectResult>((resolve, reject) => {
-    _pending.set(id, { resolve, reject });
+    // Watchdog: a worker that died without firing onerror would otherwise
+    // leave this promise pending forever (UI stuck on the elapsed counter).
+    const watchdog = setTimeout(() => {
+      if (_pending.delete(id)) {
+        reject(new Error('Inference timed out — please try again'));
+      }
+    }, DETECT_TIMEOUT_MS);
+    _pending.set(id, {
+      resolve: (r) => { clearTimeout(watchdog); resolve(r); },
+      reject: (err) => { clearTimeout(watchdog); reject(err); },
+    });
     worker.postMessage({ type: 'detect', id, text });
   });
 }
