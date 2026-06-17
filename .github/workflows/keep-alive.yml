@@ -2,15 +2,44 @@ name: Supabase Keep-Alive Ping
 
 on:
   schedule:
-    - cron: '0 0 */3 * *'
+    # Daily. A single failed/missed run still leaves margin before the 7-day pause.
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
   ping-supabase:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
+      - name: Query user_reports (real DB compute)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          curl "${{ secrets.SUPABASE_URL }}/rest/v1/user_reports?select=*&limit=1" \
-          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          set -euo pipefail
+
+          # Real SELECT against Postgres via PostgREST: SELECT id FROM user_reports LIMIT 1.
+          # Capture body + HTTP status separately so we can fail loudly if the query
+          # does NOT actually execute (RLS deny / auth error / paused project) — a plain
+          # curl exits 0 on those and masks the failure as a green check.
+          http_code=$(curl -sS -w '%{http_code}' -o response.json \
+            "${SUPABASE_URL}/rest/v1/user_reports?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Accept: application/json")
+
+          echo "HTTP status: ${http_code}"
+          echo "Response body: $(cat response.json)"
+
+          # PostgREST returns 200 with a JSON array for a successful SELECT.
+          if [ "${http_code}" != "200" ]; then
+            echo "::error::Keep-alive query did not return 200 — DB compute may not have registered."
+            exit 1
+          fi
+
+          # Body must be a JSON array (real query result), not an error object.
+          if ! grep -q '^\[' response.json; then
+            echo "::error::Unexpected response shape — expected a JSON array from SELECT."
+            exit 1
+          fi
+
+          echo "Keep-alive query succeeded; Postgres compute registered."
