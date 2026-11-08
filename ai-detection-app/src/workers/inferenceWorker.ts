@@ -1,127 +1,67 @@
-/// <reference lib="webworker" />
-import { AutoTokenizer } from '@huggingface/transformers';
+﻿/// <reference lib="webworker" />
 import * as ort from 'onnxruntime-web';
-
+import { MODEL_MANIFEST as manifest, ORT_VERSION } from '../inference/manifest.ts';
+import { verifyBytes, sha256 } from '../inference/artifacts.ts';
+import { classify, verifySessionSchema } from '../inference/contract.ts';
+import { createTokenizer, MAX_LENGTH } from '../inference/tokenizer.ts';
+import type { InitAssets } from '../inference/client.ts';
 declare const self: DedicatedWorkerGlobalScope;
-
-// Version-pinned to the exact installed package — the JS API in our bundle and
-// the CDN-fetched .wasm binary must match, and an unpinned URL would silently
-// track jsDelivr's latest release.
-ort.env.wasm.wasmPaths =
-  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0-dev.20260416-b7804b056c/dist/';
-
-const MAX_LENGTH = 416;
-const HF_REPO = 'Chitipat0947/wangchanberta-ai-detector';
-
-type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
-
-let tokenizer: Tokenizer | null = null;
+ort.env.wasm.wasmPaths = manifest.runtime.wasmPath;
+ort.env.wasm.numThreads = 1;
+ort.env.wasm.proxy = false;
 let session: ort.InferenceSession | null = null;
-
-type InitMessage = { type: 'init'; modelBytes: ArrayBuffer };
-type DetectMessage = { type: 'detect'; id: string; text: string };
-type InMessage = InitMessage | DetectMessage;
-
-function toInt64Array(source: ArrayLike<number>): BigInt64Array {
-  const out = new BigInt64Array(source.length);
-  for (let i = 0; i < source.length; i++) {
-    out[i] = BigInt(Math.round(Number((source as ArrayLike<unknown>)[i])));
-  }
-  return out;
-}
-
-function softmax(logits: ArrayLike<number>): number[] {
-  const arr = Array.from(logits);
-  const max = Math.max(...arr);
-  const exps = arr.map((x) => Math.exp(x - max));
-  const sum = exps.reduce((a, b) => a + b, 0);
-  return exps.map((x) => x / sum);
-}
-
-async function handleInit(modelBytes: ArrayBuffer): Promise<void> {
-  const bytes = new Uint8Array(modelBytes);
-  const [tok, sess] = await Promise.all([
-    AutoTokenizer.from_pretrained(HF_REPO),
-    ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] }),
-  ]);
-  tokenizer = tok;
-  session = sess;
-  self.postMessage({ type: 'ready' });
-}
-
-async function handleDetect(id: string, text: string): Promise<void> {
-  if (!tokenizer || !session) {
-    self.postMessage({ type: 'error', id, message: 'Worker not initialized' });
-    return;
-  }
-
-  const encoding = tokenizer(text, {
-    padding: 'max_length',
-    truncation: true,
-    max_length: MAX_LENGTH,
-  });
-
-  const inputIds = new ort.Tensor(
-    'int64',
-    toInt64Array(encoding.input_ids.data as ArrayLike<number>),
-    [1, MAX_LENGTH]
-  );
-  const attentionMask = new ort.Tensor(
-    'int64',
-    toInt64Array(encoding.attention_mask.data as ArrayLike<number>),
-    [1, MAX_LENGTH]
-  );
-
-  const feeds: Record<string, ort.Tensor> = {
-    input_ids: inputIds,
-    attention_mask: attentionMask,
-  };
-  if (session.inputNames.includes('token_type_ids')) {
-    feeds.token_type_ids = new ort.Tensor(
-      'int64',
-      new BigInt64Array(MAX_LENGTH),
-      [1, MAX_LENGTH]
-    );
-  }
-
-  const output = await session.run(feeds);
-  const logits = output['logits'].data as Float32Array;
-  // 4-class model: logits/probs ordered [Human, GPT, Gemini, Other] per id2label.
-  const probs = softmax(logits);
-  const pHuman = probs[0] ?? 0;
-  const pGpt = probs[1] ?? 0;
-  const pGemini = probs[2] ?? 0;
-  const pOther = probs[3] ?? 0;
-
-  // 'Other' is a real trained class now (DeepSeek/Qwen), so pick the argmax
-  // directly — no confidence thresholding / OOD fallback needed.
-  const cats = ['human', 'gpt', 'gemini', 'other'] as const;
-  let top = 0;
-  for (let i = 1; i < 4; i++) {
-    if ((probs[i] ?? 0) > (probs[top] ?? 0)) top = i;
-  }
-  const category = cats[top];
-
-  self.postMessage({
-    type: 'result',
-    id,
-    category,
-    probs: { human: pHuman, gpt: pGpt, gemini: pGemini, other: pOther },
-    aiProbability: 1 - pHuman, // total likelihood the text is AI (any vendor)
-  });
-}
-
-self.onmessage = async (event: MessageEvent<InMessage>) => {
-  const msg = event.data;
+let tokenize: ReturnType<typeof createTokenizer> | null = null;
+let state: 'empty' | 'initializing' | 'ready' | 'busy' = 'empty';
+async function init(assets: InitAssets): Promise<void> {
+  if (state !== 'empty') throw new Error('Worker already initialized');
+  state = 'initializing';
   try {
-    if (msg.type === 'init') {
-      await handleInit(msg.modelBytes);
-    } else if (msg.type === 'detect') {
-      await handleDetect(msg.id, msg.text);
+    const descriptors = { model: manifest.model, tokenizer: manifest.tokenizer,
+      tokenizerConfig: manifest.tokenizerConfig, modelConfig: manifest.modelConfig };
+    for (const key of Object.keys(descriptors) as (keyof InitAssets)[]) {
+      await verifyBytes(new Uint8Array(assets[key]), descriptors[key]);
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const id = 'id' in msg ? msg.id : undefined;
-    self.postMessage({ type: 'error', id, message });
+    const json = (bytes: ArrayBuffer) => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    const config = json(assets.modelConfig);
+    if (JSON.stringify(Object.values(config.id2label)) !== JSON.stringify(manifest.labels) ||
+        config.model_type !== 'camembert' || config.pad_token_id !== 1) throw new Error('Model configuration mismatch');
+    tokenize = createTokenizer(json(assets.tokenizer), json(assets.tokenizerConfig));
+    session = await ort.InferenceSession.create(new Uint8Array(assets.model), { executionProviders: ['wasm'] });
+    verifySessionSchema(session.inputMetadata, session.outputMetadata);
+    if (ort.env.versions.web !== ORT_VERSION) throw new Error('ONNX Runtime version mismatch');
+    state = 'ready';
+    self.postMessage({ type: 'ready', artifactId: manifest.id, runtimeVersion: ort.env.versions.web });
+  } catch (error) {
+    await session?.release(); session = null; tokenize = null; state = 'empty';
+    throw error;
   }
+}
+async function detect(id: string, text: string): Promise<void> {
+  if (state !== 'ready' || !session || !tokenize) throw new Error('Worker is not ready or is busy');
+  if (typeof text !== 'string' || text.length > 10_000) throw new Error('Unsupported text length');
+  state = 'busy';
+  const encoding = tokenize(text);
+  const ids = new ort.Tensor('int64', BigInt64Array.from(encoding.input_ids, BigInt), [1, MAX_LENGTH]);
+  const mask = new ort.Tensor('int64', BigInt64Array.from(encoding.attention_mask, BigInt), [1, MAX_LENGTH]);
+  let output: ort.InferenceSession.ReturnType | undefined;
+  try {
+    output = await session.run({ input_ids: ids, attention_mask: mask });
+    const logits = output.logits;
+    if (logits.type !== 'float32' || logits.dims.length !== 2 ||
+        logits.dims[0] !== 1 || logits.dims[1] !== 4) throw new Error('Invalid logits tensor');
+    const result = classify(logits.data as Float32Array, manifest.id);
+    const inputHash = await sha256(new TextEncoder().encode(JSON.stringify([encoding.input_ids, encoding.attention_mask])));
+    self.postMessage({ type: 'result', id, result, inputHash });
+  } finally {
+    ids.dispose(); mask.dispose();
+    if (output) for (const tensor of Object.values(output)) tensor.dispose();
+    state = 'ready';
+  }
+}
+self.onmessage = (event: MessageEvent) => {
+  const msg = event.data;
+  const work = msg?.type === 'init' ? init(msg.assets) :
+    msg?.type === 'detect' ? detect(msg.id, msg.text) : Promise.reject(new Error('Unknown worker request'));
+  void work.catch(error => self.postMessage({ type: 'error', id: msg?.id,
+    message: error instanceof Error ? error.message : 'Inference failed' }));
 };

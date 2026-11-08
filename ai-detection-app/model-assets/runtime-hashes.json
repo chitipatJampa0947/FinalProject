@@ -1,0 +1,14 @@
+[
+  {
+    "name": "ort-wasm-simd-threaded.jsep.mjs",
+    "url": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/runtime/ort-wasm-simd-threaded.jsep.mjs",
+    "bytes": 46490,
+    "sha256": "522b3769929f5684c83a12cf1e06eedf073b65d161728b4f3757c75d62b14384"
+  },
+  {
+    "name": "ort-wasm-simd-threaded.jsep.wasm",
+    "url": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/runtime/ort-wasm-simd-threaded.jsep.wasm",
+    "bytes": 26101073,
+    "sha256": "ae61141f8fbf0a4e43fd7b4f4d40a1a115627f6facc4f33ddf84074a655e33ea"
+  }
+]
