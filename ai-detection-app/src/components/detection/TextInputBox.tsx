@@ -41,6 +41,7 @@ export const TextInputBox: React.FC<TextInputBoxProps> = ({
   return (
     <div className="w-full space-y-3">
       <textarea
+        aria-label="Text to analyze"
         className={`w-full min-h-[260px] p-5 rounded-2xl bg-surface-container-low text-on-surface placeholder:text-outline-variant text-lg thai-leading resize-none outline-none focus:ring-4 transition-all ${textareaBorder}`}
         placeholder="วางข้อความภาษาไทยที่ต้องการตรวจสอบที่นี่... / Paste Thai text to analyze..."
         value={value}
@@ -58,7 +59,7 @@ export const TextInputBox: React.FC<TextInputBoxProps> = ({
           )}
           {isOverOptimal && (
             <span className="text-amber-500 font-medium">
-              💡 ความยาวเกิน 3,000 ตัวอักษร: ระบบจะวิเคราะห์จากช่วงต้นของข้อความเป็นหลัก (ประมาณ 416 โทเคนแรก) — Long text detected: Analysis focuses on the beginning of the text (about the first 416 tokens).
+              💡 ความยาวเกิน 3,000 ตัวอักษร: ระบบจะวิเคราะห์จากช่วงต้นของข้อความเป็นหลัก (398 โทเคนเนื้อหา พร้อม BOS/EOS รวม 400 โทเคน) — Long text detected: Analysis uses up to 398 content tokens plus BOS/EOS (400 tokens total).
             </span>
           )}
           {isOverLimit && (

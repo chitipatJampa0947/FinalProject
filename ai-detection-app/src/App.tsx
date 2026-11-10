@@ -1,4 +1,4 @@
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import bgBento from './assets/bg_bento.png';
 import { Modal } from './components/common/Modal';
@@ -9,6 +9,7 @@ import { TextInputBox } from './components/detection/TextInputBox';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { useAIInference } from './hooks/useAIInference';
 import { supabase } from './lib/supabaseClient';
+import { createFeedbackPayload } from './inference/feedback';
 
 type ExpectedLabel = 'Human' | 'AI';
 
@@ -31,7 +32,7 @@ function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [submittedText, setSubmittedText] = useState('');
+  const submittingRef = useRef(false);
   const {
     isModelLoading,
     isAnalyzing,
@@ -46,7 +47,7 @@ function App() {
   } = useAIInference();
   const analysisResult = result
     ? {
-        text: submittedText,
+        text: result.text,
         category: result.category,
         probs: result.probs,
         aiPercentage: result.aiProbability * 100,
@@ -87,7 +88,6 @@ function App() {
 
   const handleAnalyze = async () => {
     if (!inputText.trim() || inputText.length < 200 || inputText.length > 10000) return;
-    setSubmittedText(inputText);
     // analyzeText handles its own errors (exposed via the hook's `error`
     // state, surfaced by the toast effect above) — it never rejects.
     await analyzeText(inputText);
@@ -104,7 +104,7 @@ function App() {
   };
 
   const handleReportSubmit = async () => {
-    if (!expectedLabel) return;
+    if (!expectedLabel || !result || isAnalyzing || isModelLoading || submittingRef.current) return;
 
     // Rate limit: 60s between report submissions (anti data-poisoning).
     const REPORT_COOLDOWN_MS = 60_000;
@@ -118,19 +118,11 @@ function App() {
       return;
     }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      const text = analysisResult?.text || inputText;
-      const aiPercentage = analysisResult?.aiPercentage ?? 0;
-      const userExpectedLabel: 'Human' | 'AI-Generated' =
-        expectedLabel === 'AI' ? 'AI-Generated' : 'Human';
-
-      const { error } = await supabase.from('user_reports').insert({
-        reported_text: text,
-        ai_probability: aiPercentage,
-        user_expected_label: userExpectedLabel,
-        status: 'pending',
-      });
+      const payload = createFeedbackPayload(result, expectedLabel);
+      const { error } = await supabase.from('user_reports').insert(payload);
       if (error) throw error;
 
       localStorage.setItem('last_report_time', Date.now().toString());
@@ -146,6 +138,7 @@ function App() {
       setToastVariant('error');
       setIsToastVisible(true);
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -244,7 +237,7 @@ function App() {
                         <span className="text-primary">Analysis complete</span>
                       </div>
                       <button
-                        onClick={() => { resetInference(); setInputText(''); setSubmittedText(''); }}
+                        onClick={() => { resetInference(); setInputText(''); }}
                         className="border border-outline text-on-surface px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high active:scale-[0.98] transition-all font-label uppercase"
                       >
                         <span>New Analysis</span>

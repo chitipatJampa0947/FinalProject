@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "thai-en-w8a32-4baa5cb331f6-v1",
+  "contract": "camembert-saved-map-400-v1",
+  "maxLength": 400,
+  "labels": [
+    "Human",
+    "GPT",
+    "Gemini",
+    "Other"
+  ],
+  "inputType": "int64",
+  "outputType": "float32",
+  "runtime": {
+    "version": "1.26.0-dev.20260416-b7804b056c",
+    "wasmPath": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/runtime/"
+  },
+  "model": {
+    "url": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/model.onnx",
+    "bytes": 106299948,
+    "sha256": "4baa5cb331f6cad7d90492d33c3e9a5bf53a45029ca5a563aaa86f7a46bc84a2",
+    "tokenizerSha256": "ea8b168aba1b6e7d34a764a8aedc3ed6991e43029f83bfe463ab7725698e03eb"
+  },
+  "tokenizer": {
+    "url": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/tokenizer.json",
+    "bytes": 2179488,
+    "sha256": "ea8b168aba1b6e7d34a764a8aedc3ed6991e43029f83bfe463ab7725698e03eb"
+  },
+  "tokenizerConfig": {
+    "url": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/tokenizer_config.json",
+    "bytes": 1910,
+    "sha256": "bcc4e8b91ac01ba8e1b7681faeceb0c72f517a34be49541cbb581cb3c785cfd1"
+  },
+  "modelConfig": {
+    "url": "/artifacts/thai-en-w8a32-4baa5cb331f6-v1/config.json",
+    "bytes": 976,
+    "sha256": "6f687292d7ea8426d6d4f87f4e6781eb742403163ff385f0bc25f9625c2ccb5f"
+  }
+}
