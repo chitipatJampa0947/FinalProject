@@ -1,4 +1,4 @@
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import bgBento from './assets/bg_bento.png';
 import { Modal } from './components/common/Modal';
@@ -6,9 +6,11 @@ import { Toast, type ToastVariant } from './components/common/Toast';
 import { ModelLoader } from './components/common/ModelLoader';
 import { DetectionResult } from './components/detection/DetectionResult';
 import { TextInputBox } from './components/detection/TextInputBox';
-import { AdminDashboard } from './components/admin/AdminDashboard';
+import { AdminGateway } from './components/admin/AdminGateway';
+import { FeedbackChallenge } from './components/common/FeedbackChallenge';
 import { useAIInference } from './hooks/useAIInference';
-import { supabase } from './lib/supabaseClient';
+import { backendConfig } from './lib/supabaseClient';
+import { secureFeedbackPayload, submitFeedback } from './security/feedbackTransport';
 
 type ExpectedLabel = 'Human' | 'AI';
 
@@ -29,9 +31,14 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expectedLabel, setExpectedLabel] = useState<ExpectedLabel | null>(null);
   const [showPrivacyModal, setShowPrivacyModal] = useState(true);
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [challenge, setChallenge] = useState('');
+  const [challengeVersion, setChallengeVersion] = useState(0);
+  const [feedbackConsent, setFeedbackConsent] = useState(false);
+  const [verificationError, setVerificationError] = useState(false);
+  const config = backendConfig();
+  const challengeError = useCallback(() => { setChallenge(''); setVerificationError(true); }, []);
   const [inputText, setInputText] = useState('');
-  const [submittedText, setSubmittedText] = useState('');
+  const submittingRef = useRef(false);
   const {
     isModelLoading,
     isAnalyzing,
@@ -46,7 +53,7 @@ function App() {
   } = useAIInference();
   const analysisResult = result
     ? {
-        text: submittedText,
+        text: result.text,
         category: result.category,
         probs: result.probs,
         aiPercentage: result.aiProbability * 100,
@@ -87,13 +94,13 @@ function App() {
 
   const handleAnalyze = async () => {
     if (!inputText.trim() || inputText.length < 200 || inputText.length > 10000) return;
-    setSubmittedText(inputText);
     // analyzeText handles its own errors (exposed via the hook's `error`
     // state, surfaced by the toast effect above) — it never rejects.
     await analyzeText(inputText);
   };
 
   const handleReportClick = () => {
+    setChallenge(''); setVerificationError(false); setFeedbackConsent(false); setChallengeVersion(value => value + 1);
     setExpectedLabel(null);
     setIsModalOpen(true);
   };
@@ -104,36 +111,15 @@ function App() {
   };
 
   const handleReportSubmit = async () => {
-    if (!expectedLabel) return;
+    if (!expectedLabel || !result || isAnalyzing || isModelLoading || submittingRef.current) return;
 
-    // Rate limit: 60s between report submissions (anti data-poisoning).
-    const REPORT_COOLDOWN_MS = 60_000;
-    const lastReportTime = Number(localStorage.getItem('last_report_time') ?? 0);
-    const elapsed = Date.now() - lastReportTime;
-    if (lastReportTime && elapsed < REPORT_COOLDOWN_MS) {
-      const remaining = Math.ceil((REPORT_COOLDOWN_MS - elapsed) / 1000);
-      setToastMessage(`Please wait ${remaining} seconds before submitting another report.`);
-      setToastVariant('error');
-      setIsToastVisible(true);
-      return;
-    }
+    if (!config || !challenge || !feedbackConsent) return;
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      const text = analysisResult?.text || inputText;
-      const aiPercentage = analysisResult?.aiPercentage ?? 0;
-      const userExpectedLabel: 'Human' | 'AI-Generated' =
-        expectedLabel === 'AI' ? 'AI-Generated' : 'Human';
-
-      const { error } = await supabase.from('user_reports').insert({
-        reported_text: text,
-        ai_probability: aiPercentage,
-        user_expected_label: userExpectedLabel,
-        status: 'pending',
-      });
-      if (error) throw error;
-
-      localStorage.setItem('last_report_time', Date.now().toString());
+      const payload = secureFeedbackPayload(result, expectedLabel);
+      await submitFeedback(config, payload, challenge);
 
       setToastMessage('Thank you for your feedback!');
       setToastVariant('success');
@@ -141,12 +127,13 @@ function App() {
       setIsModalOpen(false);
       setExpectedLabel(null);
     } catch (err) {
-      console.error('Report submission failed:', err);
-      setToastMessage('Failed to send report. Please try again.');
+      setToastMessage(err instanceof Error ? err.message : 'Feedback unavailable. Your analysis is unaffected.');
       setToastVariant('error');
       setIsToastVisible(true);
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
+      setChallenge(''); setChallengeVersion(value => value + 1);
     }
   };
 
@@ -155,25 +142,12 @@ function App() {
     void preloadModel();
   };
 
-  const handleAdminClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    const expected = import.meta.env.VITE_ADMIN_PASSCODE as string | undefined;
-    const input = window.prompt('Enter Admin Passcode:');
-    if (!input || !expected || input !== expected) {
-      window.alert('Access Denied');
-      return;
-    }
-    setIsAdminUnlocked(true);
-    window.location.hash = '#/admin';
-  };
-
   const handleAdminExit = () => {
-    setIsAdminUnlocked(false);
     window.location.hash = '';
   };
 
-  if (route === '#/admin' && isAdminUnlocked) {
-    return <AdminDashboard onExit={handleAdminExit} />;
+  if (route === '#/admin') {
+    return <AdminGateway onExit={handleAdminExit} />;
   }
 
   const isBusy = isAnalyzing || isModelLoading;
@@ -244,7 +218,7 @@ function App() {
                         <span className="text-primary">Analysis complete</span>
                       </div>
                       <button
-                        onClick={() => { resetInference(); setInputText(''); setSubmittedText(''); }}
+                        onClick={() => { resetInference(); setInputText(''); }}
                         className="border border-outline text-on-surface px-10 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high active:scale-[0.98] transition-all font-label uppercase"
                       >
                         <span>New Analysis</span>
@@ -279,7 +253,7 @@ function App() {
               </div>
               <div>
                 <div className="font-bold text-on-secondary-container text-sm font-headline">Privacy Secured</div>
-                <div className="text-xs text-on-secondary-container/70 thai-leading">Local encryption active. Your data remains yours.</div>
+                <div className="text-xs text-on-secondary-container/70 thai-leading">Detection runs locally. Feedback is sent only with your consent.</div>
               </div>
             </div>
           </div>
@@ -323,7 +297,6 @@ function App() {
           </div>
           <a
             href="#/admin"
-            onClick={handleAdminClick}
             className="text-[10px] tracking-widest uppercase font-label font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 cursor-pointer"
           >
             <span className="material-symbols-outlined text-base">admin_panel_settings</span>
@@ -365,7 +338,7 @@ function App() {
               </button>
             </div>
             <div className="text-[10px] text-center text-outline uppercase tracking-widest font-bold font-label">
-              GDPR & PDPA COMPLIANT CORE
+              LOCAL INFERENCE · OPTIONAL FEEDBACK
             </div>
           </div>
         </div>
@@ -378,6 +351,12 @@ function App() {
         title="What should this text be classified as?"
       >
         <div className="p-2 space-y-6">
+          {!config && <p role="status">Secure feedback is not configured. Detection remains available.</p>}
+          {config && <>
+            <label className="block"><input type="checkbox" checked={feedbackConsent} onChange={event => { setFeedbackConsent(event.target.checked); setChallenge(''); setVerificationError(false); }} /> I consent to sending this text, prediction and expected label for administrator review. Verification contacts Cloudflare; do not submit sensitive personal information.</label>
+            {feedbackConsent && <FeedbackChallenge key={challengeVersion} siteKey={config.siteKey} onToken={setChallenge} onError={challengeError} />}
+            {verificationError && <p role="alert">Verification is unavailable. Please retry later; your analysis is unaffected.</p>}
+          </>}
           <p className="text-sm thai-leading text-slate-600 dark:text-slate-300">
             เลือกหมวดที่ถูกต้องเพื่อช่วยปรับปรุงโมเดล (Pick the correct label to help improve the model.)
           </p>
@@ -417,7 +396,7 @@ function App() {
             </button>
             <button
               onClick={handleReportSubmit}
-              disabled={isSubmitting || !expectedLabel}
+              disabled={isSubmitting || !expectedLabel || !config || !feedbackConsent || !challenge}
               className="w-full py-3 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all uppercase font-label shadow-lg"
             >
               {isSubmitting ? 'Sending...' : 'Submit Report'}

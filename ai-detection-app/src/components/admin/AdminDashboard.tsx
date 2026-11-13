@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { getAdminClient } from '../../lib/supabaseClient';
+import { requireAdministrator } from '../../security/adminAuthorization';
 
 type ReportStatus = 'pending' | 'approved' | 'rejected';
 type Filter = 'all' | ReportStatus;
@@ -11,6 +12,7 @@ interface ReportRow {
   user_expected_label: string;
   status: ReportStatus;
   created_at: string;
+  model_category: 'human' | 'gpt' | 'gemini' | 'other' | null;
 }
 
 const statusBadge: Record<ReportStatus, string> = {
@@ -55,30 +57,32 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
   const fetchReports = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    try {
+    const supabase = await getAdminClient();
+    await requireAdministrator(supabase);
     const { data, error } = await supabase
       .from('user_reports')
-      .select('id, reported_text, ai_probability, user_expected_label, status, created_at')
-      .order('created_at', { ascending: false });
+      .select('id, reported_text, ai_probability, user_expected_label, status, created_at, model_category')
+      .order('created_at', { ascending: false }).limit(100);
     if (error) {
-      console.error('Supabase fetch failed:', error);
-      setError(error.message);
+      throw new Error('Reports could not be loaded. Verify your administrator session.');
     } else {
       setReports((data ?? []) as ReportRow[]);
     }
-    setIsLoading(false);
+    } catch (error) { setReports([]); setError(error instanceof Error ? error.message : 'Reports unavailable.'); }
+    finally { setIsLoading(false); }
   }, []);
 
   useEffect(() => {
     // Initial data load on mount. fetchReports flips isLoading synchronously
     // so the spinner renders before the network round-trip — intentional for
     // a fetch-on-mount admin view; the cascading-render concern doesn't apply.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchReports();
   }, [fetchReports]);
 
   const counts = useMemo(() => {
     const c = { all: reports.length, pending: 0, approved: 0, rejected: 0 };
-    for (const r of reports) c[r.status] += 1;
+    for (const r of reports) if (['pending', 'approved', 'rejected'].includes(r.status)) c[r.status] += 1;
     return c;
   }, [reports]);
 
@@ -91,13 +95,12 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
   );
 
   const updateRowStatus = async (id: string, status: ReportStatus) => {
-    const { error } = await supabase.from('user_reports').update({ status }).eq('id', id);
-    if (error) {
-      console.error('Supabase update failed:', error);
-      setError(error.message);
-      return;
-    }
+    try {
+    const supabase = await getAdminClient(); await requireAdministrator(supabase);
+    const { data, error } = await supabase.from('user_reports').update({ status }).eq('id', id).select('id').maybeSingle();
+    if (error || !data) throw new Error('Status was not changed. Access may have expired.');
     setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+    } catch (error) { setReports([]); setError(error instanceof Error ? error.message : 'Update failed.'); }
   };
 
   const handleApprove = (id: string) => void updateRowStatus(id, 'approved');
@@ -105,13 +108,12 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this report from Supabase? This cannot be undone.')) return;
-    const { error } = await supabase.from('user_reports').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase delete failed:', error);
-      setError(error.message);
-      return;
-    }
+    try {
+    const supabase = await getAdminClient(); await requireAdministrator(supabase);
+    const { data, error } = await supabase.from('user_reports').delete().eq('id', id).select('id').maybeSingle();
+    if (error || !data) throw new Error('Report was not deleted. Access may have expired.');
     setReports((prev) => prev.filter((r) => r.id !== id));
+    } catch (error) { setReports([]); setError(error instanceof Error ? error.message : 'Delete failed.'); }
   };
 
   return (
@@ -122,7 +124,7 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
             <span className="material-symbols-outlined text-primary scale-110">admin_panel_settings</span>
             <div>
               <h1 className="font-headline font-bold tracking-tight text-xl">Admin Dashboard</h1>
-              <p className="text-[10px] uppercase font-label tracking-widest text-outline">Supabase · user_reports</p>
+              <p className="text-[10px] uppercase font-label tracking-widest text-outline">Latest 100 reports · administrator access required</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -191,7 +193,10 @@ export const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => 
             <ul className="space-y-4">
               {visible.map((r) => {
                 const expanded = expandedId === r.id;
-                const predicted = r.ai_probability >= 50 ? 'AI' : 'Human';
+                // Total AI probability is not the four-class argmax verdict.
+                const predicted = r.model_category
+                  ? ({ human: 'Human', gpt: 'GPT', gemini: 'Gemini', other: 'Other' }[r.model_category] ?? 'Invalid / unverified')
+                  : 'Legacy / not recorded';
                 const highPriority = isHighPriority(r);
                 return (
                   <li

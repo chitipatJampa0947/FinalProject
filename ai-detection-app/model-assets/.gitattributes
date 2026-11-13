@@ -1,0 +1,2 @@
+# These evaluation assets are pinned by raw-byte SHA256. Never rewrite EOLs.
+*.json -text

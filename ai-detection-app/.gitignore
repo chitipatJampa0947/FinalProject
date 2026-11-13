@@ -24,3 +24,8 @@ graphify-out/
 *.njsproj
 *.sln
 *.sw?
+
+# Private inputs and generated manual release packages
+.release/
+.env
+.env.*

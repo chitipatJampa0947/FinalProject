@@ -1,20 +1,31 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn(
-    'Supabase env vars missing (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Report submission will fail.'
-  );
+export type BackendConfig = { url: string; key: string; siteKey: string };
+export function validateBackendConfig(mode?: string, url?: string, key?: string, siteKey?: string): BackendConfig | null {
+  if (mode !== 'secure-v1' || !url || !key || !siteKey) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) return null;
+    if (key.startsWith('sb_secret_')) return null;
+    if (key.startsWith('eyJ')) {
+      const claims = JSON.parse(atob(key.split('.')[1].replaceAll('-', '+').replaceAll('_', '/'))) as { role?: string };
+      if (claims.role !== 'anon') return null;
+    } else if (!key.startsWith('sb_publishable_')) return null;
+    return { url: parsed.origin, key, siteKey };
+  } catch { return null; }
 }
-
-// createClient throws on an empty/invalid URL at module-evaluation time, which
-// would white-screen the whole app — including Mode-1 detection, which doesn't
-// need Supabase at all. With a syntactically valid placeholder the client is
-// constructed safely and only the opt-in feedback path fails (its errors are
-// already caught and surfaced by the report/admin UI).
-export const supabase = createClient(
-  SUPABASE_URL || 'https://placeholder.supabase.co',
-  SUPABASE_ANON_KEY || 'placeholder-anon-key'
-);
+export function backendConfig(): BackendConfig | null {
+  return validateBackendConfig(import.meta.env.VITE_BACKEND_MODE, import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, import.meta.env.VITE_TURNSTILE_SITE_KEY);
+}
+let client: Promise<SupabaseClient> | undefined;
+export function getAdminClient(): Promise<SupabaseClient> {
+  const config = backendConfig();
+  if (!config) return Promise.reject(new Error('Secure backend is not configured. Inference remains available.'));
+  client ??= import('@supabase/supabase-js').then(({ createClient }) => createClient(config.url, config.key, {
+    auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false },
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: 'no-store', signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(12_000)]) : AbortSignal.timeout(12_000) }) },
+  })).catch((error: unknown) => { client = undefined; throw error; });
+  return client;
+}

@@ -28,7 +28,7 @@ export const ModelLoader: React.FC<ModelLoaderProps> = ({
   }, [showElapsed]);
 
   return (
-    <div className="bg-surface-container-low rounded-2xl px-6 py-5 space-y-3 transition-colors duration-300">
+    <div role="status" aria-live="polite" className="bg-surface-container-low rounded-2xl px-6 py-5 space-y-3 transition-colors duration-300">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3 min-w-0">
           <span className="material-symbols-outlined text-primary animate-pulse">{icon}</span>
@@ -43,7 +43,8 @@ export const ModelLoader: React.FC<ModelLoaderProps> = ({
         ) : null}
       </div>
 
-      <div className="relative w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+      <div role="progressbar" aria-label={status || 'Model progress'} aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={pct ?? undefined} className="relative w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
         {hasPct ? (
           <div
             className="h-full signature-gradient rounded-full"

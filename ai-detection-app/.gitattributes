@@ -1,0 +1,3 @@
+# Preserve the accepted production bytes across Windows/Linux Git checkouts.
+index.html text eol=crlf
+public/icons.svg text eol=crlf

@@ -1,0 +1,92 @@
+[
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/config.json",
+    "bytes": 976,
+    "sha256": "6f687292d7ea8426d6d4f87f4e6781eb742403163ff385f0bc25f9625c2ccb5f"
+  },
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/manifest.json",
+    "bytes": 1257,
+    "sha256": "92eb601602b12df29f051e41d648c8696e28d5d29932ef77ee5aeeac61ae6fb0"
+  },
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/model.onnx",
+    "bytes": 106299948,
+    "sha256": "4baa5cb331f6cad7d90492d33c3e9a5bf53a45029ca5a563aaa86f7a46bc84a2"
+  },
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/runtime/ort-wasm-simd-threaded.jsep.mjs",
+    "bytes": 46490,
+    "sha256": "522b3769929f5684c83a12cf1e06eedf073b65d161728b4f3757c75d62b14384"
+  },
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/runtime/ort-wasm-simd-threaded.jsep.wasm",
+    "bytes": 26101073,
+    "sha256": "ae61141f8fbf0a4e43fd7b4f4d40a1a115627f6facc4f33ddf84074a655e33ea"
+  },
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/tokenizer.json",
+    "bytes": 2179488,
+    "sha256": "ea8b168aba1b6e7d34a764a8aedc3ed6991e43029f83bfe463ab7725698e03eb"
+  },
+  {
+    "path": "artifacts/thai-en-w8a32-4baa5cb331f6-v1/tokenizer_config.json",
+    "bytes": 1910,
+    "sha256": "bcc4e8b91ac01ba8e1b7681faeceb0c72f517a34be49541cbb581cb3c785cfd1"
+  },
+  {
+    "path": "assets/bg_bento-CKEB4-E9.png",
+    "bytes": 500832,
+    "sha256": "fd1cf59492262485a9efd60a27bbd9ba56888a034ab61adfbcf73e384f1b8786"
+  },
+  {
+    "path": "assets/dist-WDkg7f8k.js",
+    "bytes": 199528,
+    "sha256": "a1f5452c170c55e28b4418d9924f15cc879526ec5800093b0589fc08b0334e37"
+  },
+  {
+    "path": "assets/index-IRjE29VM.css",
+    "bytes": 41453,
+    "sha256": "8f1fac044342965def0c98db6dbdb4f2fb5de00f6f78503214b408f818ecf0cd"
+  },
+  {
+    "path": "assets/index-jl5qIzec.js",
+    "bytes": 235994,
+    "sha256": "8d4c39770d03f347b04825e43eee3529ff32fd628c0bb34453121d76691e503a"
+  },
+  {
+    "path": "assets/inferenceService-B6Ztkbwl.js",
+    "bytes": 8111,
+    "sha256": "b55ea3fabab0c0a5f7f481db8ff02a7bb44381423373239e01db28d2051f9046"
+  },
+  {
+    "path": "assets/inferenceWorker-DDAMXSRK.js",
+    "bytes": 431182,
+    "sha256": "9a6e200f26dd3dabd0991b1542b4898b1413ac714aec9960507dabd52cee6686"
+  },
+  {
+    "path": "assets/ort-wasm-simd-threaded.jsep-CCdEhX4k.wasm",
+    "bytes": 26101073,
+    "sha256": "ae61141f8fbf0a4e43fd7b4f4d40a1a115627f6facc4f33ddf84074a655e33ea"
+  },
+  {
+    "path": "assets/preload-helper-CREtouNF.js",
+    "bytes": 1193,
+    "sha256": "0c88c6aaef07b19239a2eac9faef82584f9e733114f85dc190e98dcea60b1753"
+  },
+  {
+    "path": "favicon.svg",
+    "bytes": 9522,
+    "sha256": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66"
+  },
+  {
+    "path": "icons.svg",
+    "bytes": 5055,
+    "sha256": "7ca2d67c9c3aebf50cdc8709ee8aacf8cdb8cc7ea6325ea94939caef5da1c53d"
+  },
+  {
+    "path": "index.html",
+    "bytes": 2025,
+    "sha256": "353089aa7471020d809f092c9b77ccca10a4226dca193d54ccbd0c53e9909716"
+  }
+]
