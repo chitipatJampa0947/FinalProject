@@ -1,0 +1,3 @@
+# Review candidate only; not linked, served or deployed.
+[functions.submit-feedback]
+verify_jwt = false
