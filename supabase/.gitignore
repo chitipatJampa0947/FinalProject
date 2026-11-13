@@ -1,0 +1,3 @@
+# Local CLI connection state and temporary branch metadata must never be committed.
+.temp/
+.branches/
