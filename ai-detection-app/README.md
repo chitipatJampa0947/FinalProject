@@ -2,7 +2,7 @@
 
 React/TypeScript frontend for the CS403 four-class WangchanBERTa detector. See the [project README](../README.md) for dataset construction, verified research results and academic limitations.
 
-**This source tree is the corrected W8A32 inference implementation, but its ordinary builds retain the historical Supabase feedback and admin features.** The tested protected inference-only Preview used a separately isolated source copy. There is no staging-disable npm script or environment flag in this tree. Do not treat `npm run build` as that isolated candidate or expose it to a live backend before the deferred security work is approved.
+**Current production:** [final-project-eta-peach.vercel.app](https://final-project-eta-peach.vercel.app/) serves the accepted security-integrated W8A32 build (`dpl_4buo7fcyQsdPAKenZoGjpdvgZTrt`). Admin uses real Supabase Auth and database authorization; Feedback uses consent, real Turnstile and a validated Edge gateway. Backend mode remains opt-in for local builds; missing public configuration disables backend operations while inference stays available. The historical inference-only Preview is a different frozen build. Follow [security/README.md](security/README.md) for operations and remaining test limitations.
 
 ## Requirements and installation
 
@@ -68,7 +68,7 @@ Vite prints its local server address. Preview does not build or deploy. Build wr
 
 | File / directory | Responsibility |
 |---|---|
-| `src/App.tsx` | UI state, input/consent, result display and historical feedback/admin routes |
+| `src/App.tsx` | UI state, input/consent, result display and secure feedback/admin routes |
 | `src/hooks/useAIInference.ts` | Lazy service import, loading/analysis state, retry and stale-result suppression |
 | `src/services/inferenceService.ts` | Manifest-driven asset loading, progress and worker/client construction |
 | `src/inference/artifacts.ts` | SHA256 checks, bounded downloads and optional verified cache |
@@ -76,8 +76,12 @@ Vite prints its local server address. Preview does not build or deploy. Build wr
 | `src/workers/inferenceWorker.ts` | Asset/schema checks, tokenizer initialization, ONNX session and inference |
 | `src/inference/tokenizer.ts` | Saved normalization mapping and exact 400-token encoding |
 | `src/inference/contract.ts` | Tensor-schema validation, label order, stable softmax and argmax |
-| `src/inference/feedback.ts` | Snapshot-consistent historical feedback payload |
-| `src/lib/supabaseClient.ts` | Optional historical backend client; not part of model computation |
+| `src/inference/feedback.ts` | Snapshot-consistent feedback prediction payload |
+| `src/lib/supabaseClient.ts` | Validated public configuration and memory-only Auth client; independent of model computation |
+| `src/components/admin/AdminGateway.tsx` | Password Auth and database-authorized admin gate |
+| `src/components/common/FeedbackChallenge.tsx` | Real Turnstile widget lifecycle |
+| `src/security/` | Server authorization checks and independent feedback transport |
+| `../supabase/functions/submit-feedback/` | Server-only CAPTCHA verification and validated ingestion |
 | `src/components/` | Text entry, verdict/probabilities, loading/modal/toast and admin UI |
 
 The model runs entirely in the dedicated worker. Model/tokenizer/config buffers are verified and transferred from the main thread; the worker verifies them again. No Hugging Face tokenizer download or legacy R2 model request selects the current artifact.
@@ -111,18 +115,20 @@ Initialization errors terminate/reset the worker. A later Analyze can create a f
 
 ## Environment variables and backend boundary
 
-Inference needs no provider or Supabase key. Leave real backend/admin settings unset for local classification review and do not submit feedback. An absent configuration uses a placeholder client and failing feedback path; it does not remove the legacy modules from a normal build.
+Inference needs no provider or Supabase key. Leave VITE_BACKEND_MODE unset to keep backend operations disabled. Secure backend configuration is opt-in; there is no placeholder public client or browser-passcode authorization.
 
-Only after approving an isolated secure backend, a local environment file could contain placeholders such as:
+For a separately configured local build, supply only public values; production already uses the reviewed secure-v1 configuration:
 
 ```dotenv
-VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_CLIENT_KEY
+VITE_BACKEND_MODE=secure-v1
+VITE_SUPABASE_URL=https://tslxclshozddleaojxwb.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLIC_PUBLISHABLE_KEY
+VITE_TURNSTILE_SITE_KEY=YOUR_REAL_PUBLIC_SITE_KEY
 ```
 
-`VITE_ADMIN_PASSCODE` is a legacy browser-visible prompt check, not authentication. Do not use it to protect real records. Never put service-role keys or research-provider secrets in `VITE_*`. The old `VITE_R2_MODEL_URL` has no effect on the current inference manifest. `W8A32_MODEL_SOURCE` is a Node process variable and should be set in the build shell, not assumed to be loaded by the preparation script from a Vite environment file.
+VITE_ADMIN_PASSCODE and VITE_SUPABASE_ANON_KEY are not read by the secure client. Never put service-role keys, database passwords, Turnstile secrets or research-provider credentials in VITE variables. The legacy VITE_R2_MODEL_URL remains unused by inference. Set W8A32_MODEL_SOURCE in the Node build shell when provisioning a model.
 
-The ordinary feedback path sends `reported_text`, total AI percentage 0–100, binary expected label and pending status. Admin operations use the same public client for SELECT/UPDATE/DELETE; authorization must be enforced by the database independently of the UI. The localStorage cooldown is bypassable. Do not configure live production credentials or use real feedback until the separate security redesign is verified.
+Feedback requires consent, a real host/action-bound CAPTCHA and the validated submit-feedback Edge Function. The browser cannot INSERT directly into user_reports. Admin signs in through Supabase Auth; server-side allowlist/session checks restrict SELECT, DELETE and UPDATE(status). Tokens stay in tab memory. Global database caps, rather than localStorage, enforce ingestion limits. Backend failure must not change inference results. See the administrator guide for setup, active RLS/allowlist/session enforcement, the 10/minute and 100/hour global limits, operational retention and targeted expiry-test limitations.
 
 ## Tests and reproducibility requirements
 
@@ -132,7 +138,7 @@ npm run lint
 npm run build
 ```
 
-`tests/client.test.ts` and `tests/reliability.test.ts` exercise local client/cache/contract behavior. `tests/tokenizer-parity.test.ts` additionally reads:
+`tests/client.test.ts` and `tests/reliability.test.ts` exercise local client/cache/contract behavior. `tests/security.test.ts` checks administrator authorization, public-config screening, strict feedback/gateway validation, time/body/error/rate-limit handling and inference independence; these are local tests, not live database mutations. `tests/tokenizer-parity.test.ts` additionally reads:
 
 - `../data/val.csv` relative to this app directory.
 - `../experiment/archive-20261108-readiness-7c21/historical/quantization/inputs/validation400.jsonl`.
@@ -142,12 +148,16 @@ The full suite checks 3,844 validation inputs and 15 recorded edge cases. Those 
 
 ## Static hosting and deployment
 
-`vite.config.ts` packages only the selected versioned asset set plus UI assets, preserving the legacy public model locally. Runtime, worker and model paths assume origin-root hosting. Use HTTPS, correct JavaScript/JSON/WASM MIME types, reviewed CSP and cache headers; protection must apply to HTML, model and runtime files. Do not assume root `vercel.json` supplies all these settings.
+`vite.config.ts` packages only the selected versioned asset set plus UI assets, preserving the legacy public model locally. Runtime, worker and model paths assume origin-root hosting. Use HTTPS, correct JavaScript/JSON/WASM MIME types, reviewed CSP and cache headers. Protected Preview/staged URLs must protect HTML, model and runtime files consistently; canonical production is intentionally public. Backend authorization remains enforced independently by Auth/RLS and CAPTCHA. Do not assume root `vercel.json` supplies all these settings.
 
-The reviewed inference-only staging output and source isolation are separate local evidence. They remove live feedback/admin modules and real environment access; there is **no command in this package that automatically recreates that isolation**. Git-linked pushes may start builds. Deployment, security redesign and changing any pinned model/runtime need separate approval and validation.
+Production uses the reviewed 23-file compressed wrapper to reconstruct 18 verified static assets; its source and output inventories remain local reproducibility evidence. The approved production deployment was staged with --prod --skip-domain, passed asset/browser/Admin/Feedback checks, and was later promoted by the owner. A normal build does not necessarily reproduce the older 16-file inference-only build or production's exact environment/headers automatically.
+
+The Vercel Root Directory is ai-detection-app and Production Branch is deploy. The current ignore rule builds production only; non-production Git pushes can still create ignored/canceled deployment records. Do not push deploy, change project settings or promote a deployment without release authorization. The independent deploy branch must not be merged with main automatically. Previous production dpl_GnJvRAogUL4XoUjewLy7A4GNZBWU remains retained; its legacy anonymous backend will still be denied by the hardened database.
+
+Canonical feedback requires that exact HTTPS origin in FEEDBACK_ALLOWED_ORIGINS and the hostname in the existing Turnstile widget. The deployment's strict CSP permits only the reviewed Supabase and Cloudflare origins alongside required self/WASM/worker resources. The noindex policy is retained. Follow the security guide for per-host configuration, regression/acceptance evidence, session revocation and rollback.
 
 ## Known limitations
 
 Desktop browser tests do not cover Safari/mobile, offline starts, browser restart persistence or low-memory hardware. First load includes a 106.30 MB model plus tokenizer/runtime downloads, and FP32 reconstruction can use substantial memory. The runtime pin is a development build. Dataset scope, false-AI risk and exploratory code-switching limitations remain as documented in the project README.
 
-The ordinary UI retains unsupported certainty/encryption marketing wording and the deferred feedback/admin design. These are audit findings, not guarantees endorsed by this guide. Do not publish raw feedback, environments, authentication profiles, weights or datasets by blanket staging.
+The footer still says "indisputable forensic analysis"; this is unsupported marketing, not a scientific guarantee. The former local-encryption/compliance claims and passcode/direct-table feedback design were replaced in the verified security integration. Do not publish raw feedback, environments, authentication profiles, weights or datasets by blanket staging.

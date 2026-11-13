@@ -4,7 +4,7 @@ A CS403 final-year Computer Science project at Thammasat University. The system 
 
 The finalized **W8A32** model achieved **87.3705% test Macro F1** and **97.3624% Human Precision** on the project's original 3,844-example test split. The corpus is **Thai-dominant news**. Supplementary Thai/Latin script-mixing analysis is exploratory; the project does **not** establish a fully annotated linguistic Thai-English code-switching benchmark.
 
-**Source and deployment distinction:** this documentation describes the corrected `fix/model-inference` implementation. As verified on 9 November 2026, GitHub `main` still contains the older inference pipeline. The ordinary application source also retains legacy feedback/admin operations. The previously tested protected inference-only Preview was built from a separately isolated copy; a normal `npm run build` does not reproduce those security exclusions. Do not deploy the unrestricted source against a live backend before a separate security review.
+**Current production:** [final-project-eta-peach.vercel.app](https://final-project-eta-peach.vercel.app/) runs the security-integrated W8A32 application, deployment `dpl_4buo7fcyQsdPAKenZoGjpdvgZTrt`. Supabase Auth, database administrator authorization/RLS, Turnstile and validated feedback ingestion are enabled. The earlier inference-only Preview is preserved historical evidence, not the current production feature set. See the [application guide](ai-detection-app/README.md) and [administrator guide](ai-detection-app/security/README.md).
 
 ## 1. Academic context and objectives
 
@@ -17,7 +17,7 @@ These are results for a fixed model and evaluated data distribution, not proof o
 - Four-class verdict, four softmax probabilities and combined AI score `1 − P(Human)`.
 - Thai-focused text entry, loading progress, error messages, retry and light/dark themes.
 - Dedicated worker, SHA256-pinned model/tokenizer assets, optional Cache API persistence and serialized inference requests.
-- Existing feedback and admin screens are historical application features with deferred security work; they are not required for classification and were disabled in the reviewed staging copy.
+- Production feedback uses explicit consent, Turnstile and a server-only validated gateway. Admin uses Supabase Auth plus a database-protected allowlist/session check. Inference works independently; the frozen inference-only Preview keeps both features disabled.
 
 | ID | Label | Meaning in this dataset |
 |---:|---|---|
@@ -36,7 +36,7 @@ These are results for a fixed model and evaluated data distribution, not proof o
 | Browser inference | `onnxruntime-web` **1.26.0-dev.20260416-b7804b056c**, WASM, one thread |
 | Browser tokenizer | `@huggingface/tokenizers` **0.1.3**, saved-map normalizer adapter |
 | Research | Python, PyTorch, Transformers, scikit-learn, ONNX/ONNX Runtime |
-| Historical backend integration | Supabase client; authentication/RLS redesign remains deferred |
+| Production backend | Supabase Auth, administrator allowlist/RLS, validated Edge ingestion and Turnstile; live RLS/Auth, real CAPTCHA feedback, administrator moderation and native concurrent limiting verified |
 | Verification | Node test runner, TypeScript, ESLint, archived desktop-browser smoke tests |
 
 The application lockfile resolves dependency versions. The exact tokenizer/runtime pins are part of the compatibility contract; upgrading them requires renewed parity and browser validation.
@@ -115,7 +115,8 @@ The original test split had been inspected during earlier diagnostics. The final
 ```text
 ai-detection-app/        React application, pinned assets, tests and build scripts
 scripts/                 Dataset/training/evaluation scripts; legacy pipeline in legacy/
-.github/workflows/       Existing scheduled/manual Supabase keep-alive workflow
+supabase/                Registered migration, reviewed Edge Function and guarded SQL checks
+.github/workflows/       Retired keep-alive in this branch; no database access
 Document and Draft/      Historical academic documents; review before redistribution
 data/                    Local-only train/validation/test CSVs
 model_output/            Local-only checkpoint/tokenizer and training outputs
@@ -141,14 +142,15 @@ The model binary is intentionally absent from Git. Obtain the exact approved art
 
 ## 10. Environment configuration
 
-No backend credentials are required for inference. For classification-only local review, leave live Supabase/admin variables unset and do not submit feedback. Missing backend configuration does not remove the legacy feedback/admin code; it is not equivalent to the isolated staging build.
+No backend credentials are required for inference. Leave VITE_BACKEND_MODE unset for classification-only local review. Secure Admin/Feedback remains disabled unless all four public settings below are configured. This opt-in behavior does not recreate the historical frozen inference-only build.
 
 | Variable | Scope / purpose |
 |---|---|
 | `W8A32_MODEL_SOURCE` | Node build/preparation process: local path to the approved ONNX file |
-| `VITE_SUPABASE_URL` | Optional historical feedback backend URL; browser-visible |
-| `VITE_SUPABASE_ANON_KEY` | Optional publishable/legacy anon client key; requires real backend authorization/RLS |
-| `VITE_ADMIN_PASSCODE` | Legacy browser-visible UI gate; **not secure administrator authentication** |
+| `VITE_BACKEND_MODE` | `secure-v1` to enable the separately configured secure backend |
+| `VITE_SUPABASE_URL` | Approved project HTTPS API origin; browser-visible |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Public publishable key, or a valid legacy anon JWT; never a service/secret key |
+| `VITE_TURNSTILE_SITE_KEY` | Public key for the real host-restricted Turnstile widget |
 | `VITE_R2_MODEL_URL` | Legacy setting; ignored by the corrected manifest-based inference pipeline |
 
 To provision the approved model, use an actual authorized local path in the shell:
@@ -160,12 +162,16 @@ npm run prepare:model
 
 The path is an example, not a supplied download. Alternatively, `node scripts/prepare-model.mjs 'C:\approved-artifacts\wo_pc_foldable.onnx'` performs the same pinned check. Keep `W8A32_MODEL_SOURCE` set for subsequent dev/build if relying on an explicit source. The default source is the local permanent experiment archive.
 
-If a separately secured backend is later approved, its Vite configuration belongs in an ignored app-local environment file. Placeholders only:
+For local secure-backend testing, use an ignored app-local environment file and only public values. Configure the exact local origin/widget hostname separately; these placeholders do not provision a backend:
 
 ```dotenv
+VITE_BACKEND_MODE=secure-v1
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_CLIENT_KEY
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLIC_PUBLISHABLE_KEY
+VITE_TURNSTILE_SITE_KEY=YOUR_PUBLIC_SITE_KEY
 ```
+
+The legacy VITE_SUPABASE_ANON_KEY variable and browser admin passcode are not read. For inference-only development, leave VITE_BACKEND_MODE unset.
 
 Do not put service-role keys, provider API keys or real admin credentials in `VITE_*`. Vite embeds these values in client bundles. Dataset-generation/Hugging Face credentials belong only in protected research-process configuration, never the frontend. The present ignore rules do not cover every environment-file variant; verify exclusion before creating one.
 
@@ -190,7 +196,7 @@ npm run preview
 
 The six actual npm scripts are documented in the [application README](ai-detection-app/README.md). `npm test` covers client/reliability behavior and tokenizer parity against **all 3,844 frozen validation examples plus 15 edge cases**. Corpus-dependent tests need local `data/val.csv` and the preserved archive fixtures; they will not all run from a bare clone. They do not perform final-test model selection or retraining.
 
-`npm run build` executes asset preparation, `tsc -b` and Vite, writing `dist/`. It packages the ordinary application, including its deferred integrations. `npm run preview` serves that local output; it does not deploy it. Current audit results and isolated-build evidence are kept locally in `experiment/github-final-audit-20261109-v1/`.
+`npm run build` executes asset preparation, `tsc -b` and Vite, writing `dist/`. It packages the application with secure Admin/Feedback enabled only when all public backend configuration is supplied. `npm run preview` serves that local output; it does not deploy it. Current source checks and build-consistency evidence are kept locally in `experiment/github-documentation-finalization-20261113-v1/`; earlier audits remain historical evidence.
 
 ## 13. Model hosting and assets
 
@@ -204,15 +210,44 @@ They include the model, tokenizer, tokenizer/model configuration, manifest and m
 
 ## 14. Deployment overview
 
-The reviewed inference-only `staging-build-v4` contains 16 files totaling 161,953,395 decoded bytes. A separately approved compressed wrapper reconstructed those exact bytes on a protected Vercel Preview; it did not change production R2 or promote production. The account-specific wrapper is archived evidence, not a generic fresh-clone deploy command.
+Canonical production: **https://final-project-eta-peach.vercel.app/**. Deployment `dpl_4buo7fcyQsdPAKenZoGjpdvgZTrt` was staged with `--prod --skip-domain`, accepted before promotion, and subsequently promoted by the owner. All three production aliases point to it:
 
-The historical Vercel project uses app Root Directory `ai-detection-app`, but root/output/protection settings must be reconfirmed before another deployment. The repository's root `vercel.json` does not supply the ignored model, staging isolation or all tested security headers. **A Git push can trigger Vercel Git-integrated builds**, even for documentation changes; review that separately before pushing. No public demo URL is published here.
+- `final-project-eta-peach.vercel.app` (canonical public entry point).
+- `final-project-chitipat92547-7679s-projects.vercel.app`.
+- `final-project-git-deploy-chitipat92547-7679s-projects.vercel.app`.
+
+The previous deployment `dpl_GnJvRAogUL4XoUjewLy7A4GNZBWU` remains retained for rollback. Its legacy anonymous backend cannot bypass the hardened database; a frontend rollback must never restore unsafe grants or a client passcode.
+
+The production package contains **18 served assets**. A reviewed **23-file / 99,015,449-byte** Brotli source wrapper reconstructs the exact tested bytes without dependency installation, app recompilation or environment expansion. Model, tokenizer, worker and WASM are served from the same HTTPS origin. The original R2 object was not replaced. The earlier 16-file inference-only staging output is an archived predecessor, not this security-integrated production build.
+
+The Vercel project is `final-project`, Root Directory `ai-detection-app`, Production Branch **deploy**, with Ignored Build Step **Only build production**. Root `vercel.json` alone is not the full verified production release configuration: the frozen wrapper also provides reviewed CSP, MIME and cache policies. Live origins and Turnstile hostname coverage must be configured explicitly per hostname; canonical production feedback preflight is verified. Other aliases do not automatically gain CAPTCHA/CORS coverage merely by pointing at the same app.
+
+GitHub source and deployed artifacts have separate release histories. The `deploy` branch has unrelated history; never merge main into it automatically. Review source on a non-production branch, integrate through the repository review process, provision the approved ignored assets and validate a separate release before an explicitly authorized traffic switch. A non-production Git push may create an ignored/canceled Vercel record; verify current settings rather than assuming every push is inert. This documentation/source synchronization does not deploy a new application.
 
 ## 15. Privacy and security
 
-Inference processes text inside the worker; optional feedback explicitly sends the analyzed text and prediction to Supabase. The normal app still includes that transport and an admin view with read/update/delete operations. The browser passcode and localStorage cooldown are not server-side access controls. Live RLS/authorization must enforce permissions independently.
+Inference processes text inside the worker. With secure backend mode enabled, feedback sends text/prediction only after explicit consent and Turnstile verification. Anonymous direct table access is denied; administrators require Auth and an owner-managed database allowlist plus a current session. Only report status can be updated. The obsolete browser passcode and localStorage cooldown are not used for authorization or abuse control.
 
-The reviewed isolated staging copy disabled feedback/admin and observed zero Supabase requests in its test cases. This does not certify the unrestricted app, all possible network flows or universal security. Existing UI phrases such as “Local encryption active” and “indisputable” are not supported guarantees. Do not enter sensitive text or configure a live backend for an unrestricted public demonstration until these deferred issues are reviewed.
+Feedback follows a separate security boundary:
+
+```mermaid
+flowchart LR
+    User[Explicit feedback consent] --> Widget[Turnstile challenge]
+    Widget --> Edge[submit-feedback Edge Function]
+    Edge --> Verify[Cloudflare Siteverify: host and action]
+    Verify --> RPC[Service-only validated ingestion RPC]
+    RPC --> Limits[Atomic global rate limits and replay receipts]
+    Limits --> Reports[Reports protected by forced RLS]
+    Admin[Administrator login] --> Auth[Supabase Auth]
+    Auth --> Allowlist[Owner-managed allowlist and active session]
+    Allowlist --> Reports
+```
+
+Direct anonymous table INSERT/SELECT/UPDATE/DELETE/TRUNCATE is denied. The public Edge endpoint deliberately uses verify_jwt=false so an anonymous visitor can submit **only after real CAPTCHA and strict server validation**; service credentials remain server-only. New reports are pending. Model ID, text bounds, normalized four-class probabilities, argmax/AI percentage and user label are checked. Private challenge hashes and atomic database caps enforce replay protection and global limits of **10 accepted submissions/minute and 100/hour**. These caps survive browser resets; they are not a localStorage cooldown or a complete traffic/WAF defense.
+
+Real administrator login, allowlist revocation, approval/rejection, normal-browser CAPTCHA submission, anonymous REST denial and native overlapping database transactions were exercised. The accepted production build passed three-browser inference/recovery and all 18 served hashes. Staged moderation was independently observed in database state; later production feedback acceptance is documented by the owner/server-log confirmation. Current read-only verification confirms the public build and canonical 204 feedback preflight without submitting/deleting reports.
+
+The older inference-only copy disabled feedback/admin and remains a separate baseline. The current tests retain limitations: natural JWT expiry and targeted valid-but-expired/wrong-action/wrong-host CAPTCHA cases were not all forced end-to-end. Global limits can be exhausted by abuse, sessions are memory-only, and provider logs may retain request metadata. Feedback is untrusted user opinion, not independently verified authorship or automatic training data. Retain operational test records when the owner requests it; do not delete them as routine cleanup. Do not submit sensitive personal information.
 
 Never commit `.env` files, real API keys, private browser profiles, authentication tokens, raw feedback, training checkpoints or unreviewed scraped data. An ignored file can still be tracked from an earlier commit; review history as well as `.gitignore`.
 
@@ -226,7 +261,10 @@ These exact locations exist in the completed local workspace and are **not promi
 | Selection/construction/readiness archive | `experiment/archive-20261108-readiness-7c21/` |
 | Approved model | `experiment/archive-20261108-readiness-7c21/historical/quantization/models/wo_pc_foldable.onnx` |
 | Exploratory mixing | `experiment/code-switching-evaluation-20261108-v1/CODE_SWITCHING_EVALUATION_REPORT.md` |
-| Actual hosted checks | `experiment/hosted-staging-validation-20261108-v2/HOSTED_STAGING_VALIDATION_REPORT.md` |
+| Original inference-only hosted checks | `experiment/hosted-staging-validation-20261108-v2/HOSTED_STAGING_VALIDATION_REPORT.md` |
+| Security integration and native concurrency | `experiment/security-integration-20261112-v1/SECURITY_INTEGRATION_REPORT.md` |
+| Accepted production build | `experiment/production-staging-20261113-v1/STAGED_PRODUCTION_ACCEPTANCE_REPORT.md` (pre-promotion checkpoint) |
+| Current production/source synchronization | `experiment/github-documentation-finalization-20261113-v1/FINAL_GITHUB_DOCUMENTATION_REPORT.md` |
 | Final academic report | `experiment/report-final-content-r5-20261109-v1/CS403_Report_68-2_36_pkl-r5.docx` and matching `.pdf` |
 
 The r5 report is 63 pages with separate verification, cleanup and author-checklist records. Do not substitute historical draft reports or binary metrics. Preserved evaluation records include hashes, software settings, inputs, predictions and confusion matrices. Full reproduction requires authorized data/model/fixture access and a separate output directory; do not rerun scripts that overwrite saved evidence. `scripts/requirements.txt` contains scraper requirements only, not the complete training/evaluation environment; the recorded frozen environment accompanies the final evaluation.
@@ -243,11 +281,11 @@ Generative models produced the labeled AI training examples through the recorded
 - Human false-AI errors, uncalibrated probabilities and class-specific performance differences.
 - Substantial browser memory/first-load costs; single-thread WASM and a development-tagged pinned runtime.
 - Desktop Edge/Chrome/Firefox evidence does not establish mobile, Safari, offline or low-memory support.
-- Deferred backend security and ordinary-build/staging-isolation differences; private artifacts needed for complete reproduction.
+- Secure staged moderation was independently verified and production feedback was exercised; targeted CAPTCHA expiry/action and natural JWT-expiry tests remain limitations; ordinary-build/frozen-staging differences and private artifacts are needed for complete reproduction.
 
 ## 19. Future work
 
-Priorities are authenticated backend authorization/RLS and server-side abuse controls, an independently collected untouched evaluation set, verified authorship provenance, bilingual annotation, open-set detection, robustness/cross-domain testing and separately validated runtime/device optimization. These are proposals, not completed results.
+Backend Auth/RLS, validated CAPTCHA ingestion and atomic server-side rate limits are implemented. Further priorities are administrator MFA, trusted-gateway abuse controls and retention/monitoring, an independently collected untouched evaluation set, verified authorship provenance, bilingual annotation, open-set detection, robustness/cross-domain testing and separately validated runtime/device optimization. These additional items are proposals, not completed results.
 
 ## 20. Academic attribution and submission
 
