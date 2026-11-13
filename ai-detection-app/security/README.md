@@ -138,9 +138,11 @@ feedback coverage still requires the explicit hostname/origin configuration abov
 Vercel Production Branch is deploy, Root Directory ai-detection-app, with Only build
 production as the ignore rule. The deploy branch has unrelated history; never merge
 main into it automatically. Source review/commits on a non-production branch do not
-replace a separately approved, verified artifact release. The local retirement of
-the old anonymous keepalive becomes the default scheduled workflow only after its
-reviewed merge into main; no RLS exception should be added to make that old job work.
+replace a separately approved, verified artifact release. The old anonymous keepalive is already retired on main after PR #10: it has
+no schedule, only a manually dispatched notice, and does not contact Supabase.
+Do not restore its anonymous query or add an RLS exception. The synchronized deploy
+source now disables Git autodeployments in both Vercel configuration files; its
+manual release and promotion approvals remain separate from source synchronization.
 
 Previous deployment dpl_GnJvRAogUL4XoUjewLy7A4GNZBWU is retained for rollback.
 Do not automatically promote, roll back, reapply migrations or restore legacy grants.
