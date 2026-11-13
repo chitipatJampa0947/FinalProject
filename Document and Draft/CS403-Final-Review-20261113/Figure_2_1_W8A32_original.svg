@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="2940" viewBox="0 0 1200 980"><rect width="1200" height="980" fill="white"/>
+<text x="25" y="47" font-family="Arial, sans-serif" font-size="35" font-weight="bold" fill="#172334">W8A32: compact weight storage, FP32 computation</text>
+<rect x="20" y="75" width="1160" height="230" rx="12" fill="#edf3fa" stroke="#40536a" stroke-width="2"/>
+<text x="45" y="123" font-family="Arial, sans-serif" font-size="33" font-weight="bold" fill="#172334">A  Offline weight quantization</text>
+<text x="45" y="169" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">FP32 weights -&gt; symmetric INT8 weights + stored FP32 scales</text>
+<text x="45" y="211" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">Linear weights: per output channel; word/position embeddings: per row</text>
+<text x="45" y="253" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">s = max(abs(W))/127; all-zero group: s = 1; zero point = 0</text>
+<text x="45" y="295" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">q = clip(round-to-even(W/s), -127, 127)       74 + 2 = 76 tensors</text>
+<path d="M600 307 V341 M590 331 L600 341 L610 331" fill="none" stroke="#40536a" stroke-width="4"/>
+<rect x="20" y="355" width="1160" height="190" rx="12" fill="#f1f5ee" stroke="#40536a" stroke-width="2"/>
+<text x="45" y="403" font-family="Arial, sans-serif" font-size="33" font-weight="bold" fill="#172334">B  ONNX weight reconstruction</text>
+<text x="45" y="450" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">Cast(q, FP32) x broadcast scale -&gt; reconstructed FP32 weights</text>
+<text x="45" y="492" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">W_hat = float(q) x s</text>
+<text x="45" y="534" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">Foldable Cast/Mul representation can permit runtime constant folding</text>
+<path d="M600 547 V581 M590 571 L600 581 L610 571" fill="none" stroke="#40536a" stroke-width="4"/>
+<rect x="20" y="595" width="1160" height="265" rx="12" fill="#f9f1e7" stroke="#40536a" stroke-width="2"/>
+<text x="45" y="643" font-family="Arial, sans-serif" font-size="33" font-weight="bold" fill="#172334">C  Browser inference (ONNX Runtime Web / WASM)</text>
+<text x="45" y="688" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">INT64 token IDs + attention masks; &lt;= 400 tokens including BOS/EOS</text>
+<text x="45" y="733" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">Embeddings -&gt; FP32 activations + FP32 model computation</text>
+<text x="45" y="778" font-family="Arial, sans-serif" font-size="29" font-weight="normal" fill="#172334">Four FP32 logits -&gt; softmax probabilities -&gt; argmax prediction</text>
+<text x="45" y="824" font-family="Arial, sans-serif" font-size="30" font-weight="bold" fill="#172334">Human (0)    |    GPT (1)    |    Gemini (2)    |    Other (3)</text>
+<text x="25" y="912" font-family="Arial, sans-serif" font-size="26" font-weight="normal" fill="#172334">Retained FP32: token-type embeddings, biases, normalization and other constants</text>
+<text x="25" y="952" font-family="Arial, sans-serif" font-size="27" font-weight="bold" fill="#172334">No activation quantization. INT8 storage does not imply INT8 matrix computation.</text>
+</svg>
