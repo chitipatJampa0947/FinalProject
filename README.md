@@ -200,6 +200,8 @@ The six actual npm scripts are documented in the [application README](ai-detecti
 
 ## 13. Model hosting and assets
 
+For replacing the classifier with a new model version, follow the [model replacement runbook (Thai)](ai-detection-app/MODEL_UPDATE.md). It includes PowerShell SHA256/size checks, manifest and runtime path changes, validation and feedback compatibility gates, new release packaging, staged Vercel commands, promotion and rollback. `prepare:model` provisions the manifest-pinned artifact; it does not approve or deploy a different model. The current manual release contract and compressed payload reproduce the existing production version and must not be reused as if they contained a new model.
+
 The [source manifest](ai-detection-app/src/inference/model-manifest.json) binds model identity, tokenizer/configuration hashes, four labels and runtime version. [Asset preparation](ai-detection-app/scripts/prepare-model.mjs) validates rather than silently overwriting existing files. Generated assets live under:
 
 ```text
