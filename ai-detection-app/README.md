@@ -23,6 +23,8 @@ No Python environment is required for frontend inference. Full research reproduc
 
 ## Model provisioning
 
+Replacing the classifier is a separate operation from provisioning the existing artifact. See the [model replacement runbook (Thai)](MODEL_UPDATE.md) for SHA256 commands, the files requiring review, backend model-ID compatibility, validation, versioned packaging and the staged Vercel release procedure. No automatic model replacement or production promotion command is provided by `prepare:model`.
+
 The authoritative contract is [src/inference/model-manifest.json](src/inference/model-manifest.json). Required artifact:
 
 ```text
